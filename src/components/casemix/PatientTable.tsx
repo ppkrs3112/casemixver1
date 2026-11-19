@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AlertTriangle, Eye, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Eye, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -30,14 +30,16 @@ export function PatientTable({
   onDelete?: (p: Patient) => void;
   compact?: boolean;
 }) {
-  const [limit, setLimit] = useState(50);
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
+  useEffect(() => setPage(0), [rows]);
   const [detail, setDetail] = useState<Patient | null>(null);
-  const shown = compact ? rows : rows.slice(0, limit);
+  const shown = compact ? rows : rows.slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <>
-      <div className="overflow-x-auto rounded-2xl border border-border-soft">
-        <table className="tabular w-full whitespace-nowrap text-xs md:text-sm">
+      <div className="max-h-[600px] overflow-auto rounded-lg border border-border-soft">
+        <table className="patient-table tabular w-full whitespace-nowrap text-xs md:text-sm">
           <thead>
             <tr className="bg-primary text-left text-primary-foreground">
               {[
@@ -82,7 +84,7 @@ export function PatientTable({
               return (
                 <tr
                   key={p.id}
-                  className={cn("border-t border-border-soft", i % 2 ? "bg-card" : "bg-surface")}
+                  className={cn("border-t border-border-soft", i % 2 ? "bg-muted" : "bg-surface")}
                 >
                   <td className="p-2.5 font-semibold">
                     {p.noSep || <span className="text-destructive">Belum diisi</span>}
@@ -177,11 +179,32 @@ export function PatientTable({
           </tbody>
         </table>
       </div>
-      {!compact && rows.length > limit && (
-        <div className="mt-3 text-center">
-          <Button variant="outline" size="sm" onClick={() => setLimit((l) => l + 50)}>
-            Tampilkan lebih banyak ({rows.length - limit} lagi)
-          </Button>
+      {!compact && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Menampilkan {rows.length ? page * pageSize + 1 : 0}-
+            {Math.min((page + 1) * pageSize, rows.length)} dari {rows.length} pasien
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Halaman sebelumnya"
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Halaman berikutnya"
+              disabled={(page + 1) * pageSize >= rows.length}
+              onClick={() => setPage(page + 1)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
         </div>
       )}
       <PatientDetail patient={detail} onClose={() => setDetail(null)} />

@@ -3,7 +3,7 @@ import { Choice } from "./Choice";
 import { PayerEditor } from "./PayerEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { payersQuery } from "@/lib/payers";
-import { CLASSES, los, upgradeRoute, validatePatient } from "@/lib/casemix";
+import { CLASSES, los, upgradeRoute, validatePatient, upgradeValidation } from "@/lib/casemix";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Save, X } from "lucide-react";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ export function PatientForm({
   if (!perm.canInput) return null;
   const c = calc(p);
   const w = warnings(p);
+  const upgradeError = upgradeValidation(p);
   const set =
     <K extends keyof Patient>(k: K) =>
     (v: Patient[K]) =>
@@ -173,23 +174,6 @@ export function PatientForm({
             placeholder="A09, J18.9"
           />
         </div>
-        <MoneyInput
-          id="f-inacbgs"
-          label="INACBGs"
-          strong
-          value={p.inacbgs}
-          onChange={set("inacbgs")}
-          className="col-span-2"
-        />
-        <MoneyInput
-          id="f-billing"
-          label={perm.billing ? "Billing RS Total" : "Billing RS Total (tidak ada akses)"}
-          strong
-          value={p.billing}
-          onChange={set("billing")}
-          disabled={!perm.billing}
-          className="col-span-2"
-        />
       </div>
 
       <fieldset className="mt-5 border-t border-border-soft pt-4">
@@ -215,13 +199,15 @@ export function PatientForm({
               }))
             }
           />
-          <Choice
-            id="f-awal"
-            label="Kelas Awal"
-            value={p.kelasAwal}
-            onChange={set("kelasAwal")}
-            options={CLASSES}
-          />
+          {p.jenisNaikKelas !== "Tidak" && (
+            <Choice
+              id="f-awal"
+              label="Kelas Awal"
+              value={p.kelasAwal}
+              onChange={set("kelasAwal")}
+              options={CLASSES}
+            />
+          )}
           {p.jenisNaikKelas !== "Tidak" && (
             <Choice
               id="f-tujuan"
@@ -280,12 +266,9 @@ export function PatientForm({
             </div>
           )}
         </div>
-        {p.jenisNaikKelas !== "Tidak" &&
-          CLASSES.indexOf(p.kelasTujuan) <= CLASSES.indexOf(p.kelasAwal) && (
-            <p className="mt-2 text-sm font-semibold text-destructive">
-              Kelas tujuan harus lebih tinggi dari kelas awal.
-            </p>
-          )}
+        {upgradeError && (
+          <p className="mt-2 text-sm font-semibold text-destructive">{upgradeError}</p>
+        )}
         <p className="mt-3 text-sm font-bold">
           Total Pendapatan: <span className="text-primary">{formatRp(c.totalPendapatan)}</span>
         </p>
@@ -303,6 +286,26 @@ export function PatientForm({
           />
         </DialogContent>
       </Dialog>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <MoneyInput
+          id="f-inacbgs"
+          label="INACBGs"
+          strong
+          value={p.inacbgs}
+          onChange={set("inacbgs")}
+          className="col-span-2"
+        />
+        <MoneyInput
+          id="f-billing"
+          label={perm.billing ? "Billing RS Total" : "Billing RS Total (tidak ada akses)"}
+          strong
+          value={p.billing}
+          onChange={set("billing")}
+          disabled={!perm.billing}
+          className="col-span-2"
+        />
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
         {[
@@ -452,7 +455,12 @@ export function PatientForm({
         </div>
       )}
 
-      <Button size="lg" className="mt-5 w-full" onClick={submit} disabled={saving}>
+      <Button
+        size="lg"
+        className="mt-5 w-full"
+        onClick={submit}
+        disabled={saving || !!upgradeError}
+      >
         <Save /> {saving ? "Menyimpan…" : editing ? "Simpan Perubahan" : "Simpan Pasien"}
       </Button>
     </section>

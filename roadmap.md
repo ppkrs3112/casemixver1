@@ -22,3 +22,10 @@
 - [x] 7. Pengaturan master penjamin COB
 - [x] 8. Dashboard naik kelas, grafik, rekap, filter, export
 - [x] 9. Tautan dashboard, validasi, tes tanpa mengubah login
+
+## V4.3 tampilan dan COB tetap kelas
+- [x] Sidebar kiri, collapse desktop, drawer HP, header konten
+- [x] Dashboard: filter, 8 kartu, 4 grafik, pagination; fitur lama tetap tersedia
+- [x] COB tetap kelas: validasi form/database, rute, tes
+- [x] Pengaturan Tampilan online: logo, warna, isi login, preview
+- [x] Verifikasi login, simpan pengaturan, COB, HP; data pasien lama tidak berubah

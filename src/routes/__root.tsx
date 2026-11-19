@@ -11,6 +11,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { AppearanceProvider } from "@/lib/appearance";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -84,10 +85,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Casemix RS V4" },
-      { name: "description", content: "Analisis Casemix rumah sakit: INACBGs, billing, saving, CRR, dan alokasi SDM & operasional." },
+      {
+        name: "description",
+        content:
+          "Analisis Casemix rumah sakit: INACBGs, billing, saving, CRR, dan alokasi SDM & operasional.",
+      },
       { name: "theme-color", content: "#C026D3" },
       { property: "og:title", content: "Casemix RS V4" },
-      { property: "og:description", content: "Analisis Casemix rumah sakit: INACBGs, billing, saving, CRR, dan alokasi SDM & operasional." },
+      {
+        property: "og:description",
+        content:
+          "Analisis Casemix rumah sakit: INACBGs, billing, saving, CRR, dan alokasi SDM & operasional.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -142,7 +151,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AppearanceProvider>
+        <Outlet />
+      </AppearanceProvider>
       <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );

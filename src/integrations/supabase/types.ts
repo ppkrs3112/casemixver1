@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      appearance_settings: {
+        Row: {
+          id: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cob_payers: {
         Row: {
           aktif: boolean

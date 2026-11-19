@@ -22,6 +22,13 @@
       "when": 1795128553670,
       "tag": "0002_inpatient_sep_cob_upgrades",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795130284855,
+      "tag": "0003_appearance_settings_and_cob_same_class",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,20 @@ import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/casemix/AppHeader";
+import { DashboardStats } from "@/components/casemix/DashboardStats";
+import { DashboardCharts } from "@/components/casemix/DashboardCharts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Plus,
+  Download,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+} from "lucide-react";
+import { exportPatientsExcel } from "@/lib/excel";
+import { todayISO } from "@/lib/download";
 import { ChartsGrid } from "@/components/casemix/Charts";
 import { DataTools } from "@/components/casemix/DataTools";
 import { PatientForm } from "@/components/casemix/PatientForm";
@@ -65,6 +79,7 @@ function Dashboard() {
   const [losFilter, setLosFilter] = useState("");
   const [dpjpFilter, setDpjpFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
 
   const searched = useMemo(() => all.filter((p) => matchesSearch(p, search)), [all, search]);
@@ -95,6 +110,7 @@ function Dashboard() {
   async function onSave(p: Patient) {
     await savePatient(p);
     setEditing(null);
+    setFormOpen(false);
     refresh();
   }
 
@@ -111,111 +127,226 @@ function Dashboard() {
 
   function onEdit(p: Patient) {
     setEditing(p);
+    setFormOpen(true);
     requestAnimationFrame(() =>
       document.getElementById("form-pasien")?.scrollIntoView({ behavior: "smooth" }),
     );
   }
 
+  function changeMonth(delta: number) {
+    const d = new Date(`${filter.bulan || todayISO().slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + delta);
+    setFilter({ ...filter, mode: "bulanan", bulan: d.toISOString().slice(0, 7) });
+  }
+  function reset() {
+    setSearch("");
+    setKind("");
+    setDpjpFilter("");
+    setLosFilter("");
+  }
+  const period = periodLabel(filter);
   return (
-    <main className="mx-auto max-w-7xl px-3 py-3 md:px-6 md:py-6">
-      <AppHeader me={me} active="dashboard" />
-      <PeriodBar
-        filter={filter}
-        onChange={setFilter}
-        search={search}
-        onSearch={setSearch}
-        years={yearsOf(all)}
-      />
-
-      <div className="space-y-4">
-        <StatCards t={t} />
-        <Button asChild variant="soft-orange" className="w-full justify-between">
-          <Link to="/naik-kelas">Lihat Dashboard Naik Kelas →</Link>
-        </Button>
-
-        {warnCount > 0 && (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive-soft p-3 text-sm font-semibold text-destructive">
-            ⚠ {warnCount} pasien pada periode ini melebihi batas Darah (Rp 700.000) atau PA (Rp
-            400.000). Lihat tanda ⚠ di tabel.
+    <main className="space-y-6 p-4 md:p-6">
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-extrabold">Dashboard Casemix</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ringkasan Keuangan & Kinerja RS - Periode {period}
+            </p>
           </div>
-        )}
-
-        <ChartsGrid trendSource={searched} filtered={filtered} totals={t} filter={filter} />
-
-        <PatientForm
-          me={me}
-          editing={editing}
-          defaultDate={filter.tanggal}
-          onSave={onSave}
-          onCancelEdit={() => setEditing(null)}
-        />
-
-        <DataTools
-          me={me}
-          all={all}
-          filtered={tableRows}
-          periodText={periodLabel(filter)}
-          onChanged={refresh}
-        />
-
-        <section className="panel p-3 md:p-4">
-          <h2 className="mb-3 text-base font-bold">
-            Data Pasien{" "}
-            <span className="text-sm font-medium text-muted-foreground">
-              · {tableRows.length} dari {all.length}
-            </span>
-          </h2>
-          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-wrap gap-2">
+            {perm.canInput && (
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus />
+                Tambah Pasien
+              </Button>
+            )}
+            {perm.export && (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  exportPatientsExcel("casemix.xlsx", tableRows).catch(() =>
+                    toast.error("Export gagal"),
+                  )
+                }
+              >
+                <Download />
+                Export Excel
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() =>
+                document.getElementById("dashboard-filters")?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              <SlidersHorizontal />
+              Filter
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">Dashboard &gt; {period}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center rounded-lg border border-border-soft bg-surface">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Bulan sebelumnya"
+                onClick={() => changeMonth(-1)}
+              >
+                <ChevronLeft />
+              </Button>
+              <span className="px-2 text-xs font-semibold">{period}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Bulan berikutnya"
+                onClick={() => changeMonth(1)}
+              >
+                <ChevronRight />
+              </Button>
+            </div>
             <Choice
-              id="main-kind"
-              label="Filter Naik Kelas"
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: "", label: "Semua" },
-                { value: "Tidak", label: "Tidak" },
-                "Biasa",
-                "COB",
-              ]}
-            />
-            <Choice
-              id="main-los"
-              label="Filter LOS"
-              value={losFilter}
-              onChange={setLosFilter}
-              options={[
-                { value: "", label: "Semua" },
-                "Belum pulang",
-                "1–3 hari",
-                "4–7 hari",
-                "> 7 hari",
-              ]}
-            />
-            <Choice
-              id="main-dpjp"
-              label="Filter DPJP"
-              value={dpjpFilter}
-              onChange={setDpjpFilter}
-              options={[
-                { value: "", label: "Semua" },
-                ...[...new Set(all.map((p) => p.dpjp).filter(Boolean))].sort(),
-              ]}
+              id="period-preset"
+              label="Periode"
+              value=""
+              onChange={(v) => {
+                if (v === "Semua") setFilter({ ...filter, mode: "tahunan", tahun: "" });
+                else {
+                  const d = new Date();
+                  d.setDate(1);
+                  if (v === "Bulan Lalu") d.setMonth(d.getMonth() - 1);
+                  setFilter({
+                    ...filter,
+                    mode: "bulanan",
+                    bulan: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+                  });
+                }
+              }}
+              options={[{ value: "", label: "Pilih periode" }, "Bulan Ini", "Bulan Lalu", "Semua"]}
             />
           </div>
-          <PatientTable
-            rows={tableRows}
-            canEdit={perm.canInput}
-            canDelete={perm.hapus}
-            onEdit={onEdit}
-            onDelete={onDelete}
+        </div>
+      </section>
+      <section
+        id="dashboard-filters"
+        className="no-print z-20 grid items-end gap-3 rounded-lg border border-border-soft bg-surface p-4 md:sticky md:top-[72px] lg:grid-cols-[2fr_1fr_1fr_1fr_auto]"
+      >
+        <div className="space-y-1">
+          <label htmlFor="dashboard-search" className="text-xs font-medium">
+            Cari Pasien
+          </label>
+          <Input
+            id="dashboard-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari No SEP / Nama / No RM / ICD-10 / DPJP…"
           />
-        </section>
-
-        <p className="pb-4 text-center text-[11px] text-muted-foreground">
-          Selisih = Total Pendapatan − Billing · CRR = Total Pendapatan ÷ Billing × 100% · Saving =
-          Total Pendapatan − Investasi (25% INACBGs) − SDM − Ops
-        </p>
-      </div>
+        </div>
+        <Choice
+          id="main-dpjp"
+          label="Filter DPJP"
+          value={dpjpFilter}
+          onChange={setDpjpFilter}
+          options={[
+            { value: "", label: "Semua" },
+            ...[...new Set(all.map((p) => p.dpjp).filter(Boolean))].sort(),
+          ]}
+        />
+        <Choice
+          id="main-kind"
+          label="Filter Naik Kelas"
+          value={kind}
+          onChange={setKind}
+          options={[{ value: "", label: "Semua" }, "Tidak", "Biasa", "COB"]}
+        />
+        <Choice
+          id="main-los"
+          label="Filter LOS"
+          value={losFilter}
+          onChange={setLosFilter}
+          options={[
+            { value: "", label: "Semua" },
+            "Belum pulang",
+            "1–3 hari",
+            "4–7 hari",
+            "> 7 hari",
+          ]}
+        />
+        <Button variant="ghost" onClick={reset}>
+          <RotateCcw />
+          Reset
+        </Button>
+      </section>
+      <DashboardStats rows={tableRows} />
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-bold">Grafik & Analisis</h2>
+          <Button asChild variant="ghost">
+            <Link to="/naik-kelas">Lihat Dashboard Naik Kelas →</Link>
+          </Button>
+        </div>
+        <DashboardCharts rows={tableRows} />
+      </section>
+      <section className="rounded-lg border border-border-soft bg-surface p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-bold">Tabel Pasien</h2>
+          <span className="text-xs text-muted-foreground">{tableRows.length} pasien</span>
+        </div>
+        <PatientTable
+          rows={tableRows}
+          canEdit={perm.canInput}
+          canDelete={perm.hapus}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      </section>
+      <DataTools me={me} all={all} filtered={tableRows} periodText={period} onChanged={refresh} />
+      <details className="rounded-lg border border-border-soft bg-surface p-4">
+        <summary className="cursor-pointer text-sm font-bold">
+          Analisis Lengkap · Alokasi SDM, Operasional & 7 Grafik
+        </summary>
+        <div className="mt-4 space-y-4">
+          <PeriodBar
+            filter={filter}
+            onChange={setFilter}
+            search={search}
+            onSearch={setSearch}
+            years={yearsOf(all)}
+          />
+          <StatCards t={t} />
+          <ChartsGrid trendSource={searched} filtered={filtered} totals={t} filter={filter} />
+          {warnCount > 0 && (
+            <p className="text-sm text-destructive">
+              {warnCount} pasien melebihi batas Darah / PA.
+            </p>
+          )}
+        </div>
+      </details>
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Pasien" : "Tambah Pasien"}</DialogTitle>
+          </DialogHeader>
+          <PatientForm
+            me={me}
+            editing={editing}
+            defaultDate={filter.tanggal}
+            onSave={onSave}
+            onCancelEdit={() => {
+              setEditing(null);
+              setFormOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

@@ -39,4 +39,6 @@ use the editor.
 - Admission dates map to the additive `tanggal_masuk` column; the database synchronizes legacy `tanggal` for published-version compatibility. Legacy SEP values stay null until staff supplies real values. Why: preserve existing records without inventing hospital identifiers.
 - COB payers use a team-readable, admin-write RLS master; patient rows reference the payer and snapshot its name, with database upgrade validation and restrictive deletion. Why: prevent bypassed validation and preserve historical payer records.
 - Upgrade statistics and date presets are pure functions in the casemix module; Excel loads its browser writer only on export. Why: share tested calculations and keep browser-only download code out of server execution.
+- Authenticated pages share AppShell for fixed/collapsed desktop navigation and an accessible mobile drawer; login stays outside this shell. Why: navigation is consistent without changing the existing login flow.
+- Appearance settings are public-read/admin-write in a singleton row; logo uploads use private storage and a validated image preview in settings, with shared theme tokens and polling. Why: branding works signed out and across devices without public storage buckets.
 <!-- AGENT-MEMORY:END -->

@@ -14,6 +14,8 @@ import {
   upgradeStats,
   dateRangePreset,
   toCsv,
+  upgradeRoute,
+  upgradeValidation,
   type Patient,
 } from "@/lib/casemix";
 
@@ -194,10 +196,42 @@ describe("Inpatient and upgrade rules", () => {
   it("LOS is absent without discharge", () => expect(los(p({}))).toBeNull());
   it("rejects discharge before admission", () =>
     expect(validatePatient(p({ tanggalPulang: "2026-10-31" }))).not.toBeNull());
-  it("rejects equal or lower class", () => {
+  it("Biasa rejects equal or lower class", () => {
     expect(validatePatient(up({ kelasTujuan: "Kelas 2" }))).not.toBeNull();
     expect(validatePatient(up({ kelasTujuan: "Kelas 3" }))).not.toBeNull();
     expect(validatePatient(up({ kelasTujuan: "VIP" }))).toBeNull();
+  });
+  it("COB permits same class and includes it in routes, payer income and exports", () => {
+    const sample = up({
+      jenisNaikKelas: "COB",
+      kelasAwal: "Kelas 2",
+      kelasTujuan: "Kelas 2",
+      penjaminId: "payer",
+      namaPenjaminCob: "Allianz",
+    });
+    expect(validatePatient(sample)).toBeNull();
+    expect(upgradeValidation(sample)).toBeNull();
+    expect(upgradeRoute(sample)).toBe("Kelas 2 -> Kelas 2 (COB - Tetap Kelas)");
+    const stats = upgradeStats([sample]);
+    expect(stats.cob).toBe(1);
+    expect(stats.incomeCob).toBe(500000);
+    expect(stats.routes[0]?.name).toBe("Kelas 2 -> Kelas 2 (COB - Tetap Kelas)");
+    expect(stats.payers[0]?.value).toBe(500000);
+    expect(parseCsv(toCsv([sample]), () => "").errors).toEqual([]);
+  });
+  it("COB rejects a lower class", () => {
+    const sample = up({
+      jenisNaikKelas: "COB",
+      kelasAwal: "Kelas 1",
+      kelasTujuan: "Kelas 2",
+      penjaminId: "payer",
+    });
+    expect(validatePatient(sample)).toBe(
+      "Kelas Tujuan COB tidak boleh lebih rendah dari Kelas Awal",
+    );
+    expect(upgradeValidation(sample)).toBe(
+      "Kelas Tujuan COB tidak boleh lebih rendah dari Kelas Awal",
+    );
   });
   it("COB requires a selected payer", () =>
     expect(validatePatient(up({ jenisNaikKelas: "COB", penjaminId: "" }))).toBe(

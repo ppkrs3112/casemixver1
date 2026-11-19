@@ -728,7 +728,23 @@ export function los(p: Pick<Patient, "tanggal" | "tanggalPulang">): number | nul
   return Math.round((Date.parse(p.tanggalPulang) - Date.parse(p.tanggal)) / 86400000) + 1;
 }
 export function upgradeRoute(p: Patient) {
-  return p.jenisNaikKelas === "Tidak" ? "-" : `${p.kelasAwal} -> ${p.kelasTujuan}`;
+  return p.jenisNaikKelas === "Tidak"
+    ? "-"
+    : `${p.kelasAwal} -> ${p.kelasTujuan}${p.jenisNaikKelas === "COB" && p.kelasAwal === p.kelasTujuan ? " (COB - Tetap Kelas)" : ""}`;
+}
+export function upgradeValidation(p: Patient): string | null {
+  if (p.jenisNaikKelas === "Tidak") return null;
+  const from = CLASSES.indexOf(p.kelasAwal),
+    to = CLASSES.indexOf(p.kelasTujuan);
+  if (to < 0 || from < 0) return "Pilih Kelas Awal dan Kelas Tujuan";
+  if (p.jenisNaikKelas === "Biasa" && to <= from)
+    return "Kelas Tujuan harus lebih tinggi dari Kelas Awal";
+  if (p.jenisNaikKelas === "COB" && to < from)
+    return "Kelas Tujuan COB tidak boleh lebih rendah dari Kelas Awal";
+  if (p.jenisNaikKelas === "COB" && !p.penjaminId) return "Pilih Penjamin COB dulu";
+  if (!Number.isFinite(p.tambahanNaikKelas) || p.tambahanNaikKelas <= 0)
+    return "Tambahan biaya wajib lebih dari 0";
+  return null;
 }
 export function validatePatient(p: Patient, requirePayer = true): string | null {
   if (!p.noSep.trim()) return "No SEP wajib diisi";
@@ -745,8 +761,14 @@ export function validatePatient(p: Patient, requirePayer = true): string | null 
   if (!CLASSES.includes(p.kelasAwal)) return "Kelas awal tidak valid";
   if (!["Tidak", "Biasa", "COB"].includes(p.jenisNaikKelas)) return "Jenis naik kelas tidak valid";
   if (p.jenisNaikKelas !== "Tidak") {
-    if (CLASSES.indexOf(p.kelasTujuan) <= CLASSES.indexOf(p.kelasAwal))
-      return "Kelas tujuan harus lebih tinggi dari kelas awal";
+    if (!CLASSES.includes(p.kelasTujuan)) return "Pilih Kelas Awal dan Kelas Tujuan";
+    if (
+      p.jenisNaikKelas === "Biasa" &&
+      CLASSES.indexOf(p.kelasTujuan) <= CLASSES.indexOf(p.kelasAwal)
+    )
+      return "Kelas Tujuan harus lebih tinggi dari Kelas Awal";
+    if (p.jenisNaikKelas === "COB" && CLASSES.indexOf(p.kelasTujuan) < CLASSES.indexOf(p.kelasAwal))
+      return "Kelas Tujuan COB tidak boleh lebih rendah dari Kelas Awal";
     if (!Number.isFinite(p.tambahanNaikKelas) || p.tambahanNaikKelas <= 0)
       return "Tambahan biaya wajib lebih dari 0";
     if (p.jenisNaikKelas === "COB" && !(requirePayer ? p.penjaminId : p.namaPenjaminCob))
