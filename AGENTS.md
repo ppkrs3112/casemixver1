@@ -28,3 +28,12 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+<!-- AGENT-MEMORY:BEGIN -->
+## Architecture rules
+- Casemix formulas, aggregation, insights and CSV live as pure functions in `src/lib/casemix.ts` (tested in `casemix.test.ts`); UI never re-implements a formula. Why: one source of truth for numbers shown in dashboard, report and exports.
+- Login is username-based: usernames map to internal `<username>@casemix.local` auth emails; public signup is disabled and accounts are created only by Admin via server functions in `src/lib/accounts.functions.ts`. Why: hospital staff log in with handles, not emails.
+- Roles live in `user_roles`, per-account checkboxes in `user_permissions`; field-level input rights are enforced by the `enforce_patient_permissions` DB trigger, not only by hiding inputs. Why: hidden inputs alone can be bypassed.
+- Signed-in pages live under `src/routes/_authenticated/` (client-only gate redirects to `/`, the login page). Why: session is in browser storage.
+- Patient list refreshes live via a realtime subscription (`usePatientsLive`). Why: team members on other devices see changes immediately.
+<!-- AGENT-MEMORY:END -->
