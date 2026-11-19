@@ -1,10 +1,24 @@
 import { formatPct, formatRp, type Totals } from "@/lib/casemix";
 import { cn } from "@/lib/utils";
 
-function Stat({ label, value, sub, tone = "plain", highlight }: { label: string; value: string; sub?: React.ReactNode; tone?: "primary" | "orange" | "good" | "bad" | "plain"; highlight?: boolean }) {
+function Stat({
+  label,
+  value,
+  sub,
+  tone = "plain",
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: React.ReactNode;
+  tone?: "primary" | "orange" | "good" | "bad" | "plain";
+  highlight?: boolean;
+}) {
   return (
     <div className={cn("print-avoid p-3 md:p-4", highlight ? "panel-card" : "panel")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <p
         className={cn(
           "tabular mt-1 text-base font-extrabold md:text-xl",
@@ -25,21 +39,58 @@ export function StatCards({ t }: { t: Totals }) {
   const crrGood = t.crr >= 100;
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <Stat label="Total Pendapatan" value={formatRp(t.totalPendapatan)} tone="primary" />
+        <Stat
+          label="Tambahan Naik Kelas / COB"
+          value={formatRp(t.totalPendapatan - t.inacbgs)}
+          tone="orange"
+        />
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat highlight label="Total INACBGs" value={formatRp(t.inacbgs)} tone="primary" sub={`${t.count} pasien`} />
+        <Stat
+          highlight
+          label="Total INACBGs"
+          value={formatRp(t.inacbgs)}
+          tone="primary"
+          sub={`${t.count} pasien`}
+        />
         <Stat label="Total Billing RS" value={formatRp(t.billing)} tone="orange" />
         <Stat
           highlight
           label="Selisih"
           value={formatRp(t.selisih)}
           tone={t.selisih >= 0 ? "good" : "bad"}
-          sub={<span className={cn("font-bold", t.billing > 0 && (crrGood ? "text-success" : "text-destructive"))}>CRR {formatPct(t.crr)}</span>}
+          sub={
+            <span
+              className={cn(
+                "font-bold",
+                t.billing > 0 && (crrGood ? "text-success" : "text-destructive"),
+              )}
+            >
+              CRR {formatPct(t.crr)}
+            </span>
+          }
         />
-        <Stat label="Total Saving" value={formatRp(t.saving)} tone={t.saving >= 0 ? "good" : "bad"} />
+        <Stat
+          label="Total Saving"
+          value={formatRp(t.saving)}
+          tone={t.saving >= 0 ? "good" : "bad"}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="SDM Terpakai" value={formatRp(t.sdm)} tone={t.sisaSdm < 0 ? "bad" : "plain"} sub={`Alokasi 40%: ${formatRp(t.alokasiSdm)}`} />
-        <Stat label="Ops Terpakai" value={formatRp(t.ops)} tone={t.sisaOps < 0 ? "bad" : "plain"} sub={`Alokasi 35%: ${formatRp(t.alokasiOps)}`} />
+        <Stat
+          label="SDM Terpakai"
+          value={formatRp(t.sdm)}
+          tone={t.sisaSdm < 0 ? "bad" : "plain"}
+          sub={`Alokasi 40%: ${formatRp(t.alokasiSdm)}`}
+        />
+        <Stat
+          label="Ops Terpakai"
+          value={formatRp(t.ops)}
+          tone={t.sisaOps < 0 ? "bad" : "plain"}
+          sub={`Alokasi 35%: ${formatRp(t.alokasiOps)}`}
+        />
         <Stat label="Investasi 25%" value={formatRp(t.investasi)} />
         <Stat
           label="Sisa SDM + Ops"

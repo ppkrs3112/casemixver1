@@ -11,3 +11,14 @@
 - [x] Import CSV, Export CSV, Backup/Restore JSON, Template CSV
 - [x] Laporan Bulanan untuk Direksi (Print/PDF)
 - [x] Tes rumus & hak akses
+
+## Pembaruan rawat inap & naik kelas
+- [x] 1. No SEP unik, No RM tetap dapat berulang
+- [x] 2. Tanggal masuk/pulang, LOS, ICD-10
+- [x] 3. Form kelas, jenis naik kelas, tambahan, penjamin
+- [x] 4. Rumus total pendapatan, saving, selisih, CRR
+- [x] 5. Tabel utama dan filter naik kelas/LOS/DPJP
+- [x] 6. Excel, CSV, import, backup kompatibel (SEP harus dilengkapi pada file lama sebelum impor/restore)
+- [x] 7. Pengaturan master penjamin COB
+- [x] 8. Dashboard naik kelas, grafik, rekap, filter, export
+- [x] 9. Tautan dashboard, validasi, tes tanpa mengubah login

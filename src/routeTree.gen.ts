@@ -14,6 +14,8 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAkunRouteImport } from './routes/_authenticated/akun'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedLaporanRouteImport } from './routes/_authenticated/laporan'
+import { Route as AuthenticatedNaikKelasRouteImport } from './routes/_authenticated/naik-kelas'
+import { Route as AuthenticatedPengaturanRouteImport } from './routes/_authenticated/pengaturan'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,18 +41,32 @@ const AuthenticatedLaporanRoute = AuthenticatedLaporanRouteImport.update({
   path: '/laporan',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNaikKelasRoute = AuthenticatedNaikKelasRouteImport.update({
+  id: '/naik-kelas',
+  path: '/naik-kelas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPengaturanRoute = AuthenticatedPengaturanRouteImport.update({
+  id: '/pengaturan',
+  path: '/pengaturan',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/akun': typeof AuthenticatedAkunRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/laporan': typeof AuthenticatedLaporanRoute
+  '/naik-kelas': typeof AuthenticatedNaikKelasRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/akun': typeof AuthenticatedAkunRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/laporan': typeof AuthenticatedLaporanRoute
+  '/naik-kelas': typeof AuthenticatedNaikKelasRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +75,15 @@ export interface FileRoutesById {
   '/_authenticated/akun': typeof AuthenticatedAkunRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/laporan': typeof AuthenticatedLaporanRoute
+  '/_authenticated/naik-kelas': typeof AuthenticatedNaikKelasRoute
+  '/_authenticated/pengaturan': typeof AuthenticatedPengaturanRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/akun' | '/dashboard' | '/laporan'
+  fullPaths:
+    '/' | '/akun' | '/dashboard' | '/laporan' | '/naik-kelas' | '/pengaturan'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/akun' | '/dashboard' | '/laporan'
+  to: '/' | '/akun' | '/dashboard' | '/laporan' | '/naik-kelas' | '/pengaturan'
   id:
     | '__root__'
     | '/'
@@ -72,6 +91,8 @@ export interface FileRouteTypes {
     | '/_authenticated/akun'
     | '/_authenticated/dashboard'
     | '/_authenticated/laporan'
+    | '/_authenticated/naik-kelas'
+    | '/_authenticated/pengaturan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -116,6 +137,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLaporanRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/naik-kelas': {
+      id: '/_authenticated/naik-kelas'
+      path: '/naik-kelas'
+      fullPath: '/naik-kelas'
+      preLoaderRoute: typeof AuthenticatedNaikKelasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pengaturan': {
+      id: '/_authenticated/pengaturan'
+      path: '/pengaturan'
+      fullPath: '/pengaturan'
+      preLoaderRoute: typeof AuthenticatedPengaturanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -123,12 +158,16 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAkunRoute: typeof AuthenticatedAkunRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLaporanRoute: typeof AuthenticatedLaporanRoute
+  AuthenticatedNaikKelasRoute: typeof AuthenticatedNaikKelasRoute
+  AuthenticatedPengaturanRoute: typeof AuthenticatedPengaturanRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAkunRoute: AuthenticatedAkunRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLaporanRoute: AuthenticatedLaporanRoute,
+  AuthenticatedNaikKelasRoute: AuthenticatedNaikKelasRoute,
+  AuthenticatedPengaturanRoute: AuthenticatedPengaturanRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -9,17 +9,36 @@ import {
   totals,
   usernameToEmail,
   warnings,
+  los,
+  validatePatient,
+  upgradeStats,
+  dateRangePreset,
+  toCsv,
   type Patient,
 } from "@/lib/casemix";
 
-const p = (over: Partial<Patient>): Patient => ({ ...emptyPatient("2026-11-01"), id: "x", nama: "A", ...over });
+const p = (over: Partial<Patient>): Patient => ({
+  ...emptyPatient("2026-11-01"),
+  id: "x",
+  noSep: "SEP1",
+  nama: "A",
+  ...over,
+});
 
 describe("Casemix formulas", () => {
   const sample = p({
     inacbgs: 10_000_000,
     billing: 8_000_000,
-    jasaDpjp: 2_000_000, jasaDu: 500_000, jasaPenunjang: 700_000, konsul: 100_000,
-    farmasi: 1_800_000, lab: 150_000, radiologi: 100_000, darah: 0, pa: 0, opsLain: 600_000,
+    jasaDpjp: 2_000_000,
+    jasaDu: 500_000,
+    jasaPenunjang: 700_000,
+    konsul: 100_000,
+    farmasi: 1_800_000,
+    lab: 150_000,
+    radiologi: 100_000,
+    darah: 0,
+    pa: 0,
+    opsLain: 600_000,
   });
   const c = calc(sample);
 
@@ -76,17 +95,42 @@ describe("Access rights", () => {
   const [admin, staff, direksi] = DEFAULT_USERS;
 
   it("staff-sdm can only input SDM", () => {
-    const perm = permissions(staff!);
-    expect(perm).toMatchObject({ canInput: true, sdm: true, ops: false, billing: false, hapus: false, export: false });
+    const perm = permissions(staff ?? null);
+    expect(perm).toMatchObject({
+      canInput: true,
+      sdm: true,
+      ops: false,
+      billing: false,
+      hapus: false,
+      export: false,
+    });
   });
 
   it("a Viewer can never input or delete, even with boxes ticked", () => {
-    const perm = permissions({ ...direksi!, akses: { sdm: true, ops: true, billing: true, hapus: true, export: true } });
-    expect(perm).toMatchObject({ canInput: false, sdm: false, ops: false, billing: false, hapus: false, export: true });
+    if (!direksi) throw new Error("Missing viewer fixture");
+    const perm = permissions({
+      ...direksi,
+      akses: { sdm: true, ops: true, billing: true, hapus: true, export: true },
+    });
+    expect(perm).toMatchObject({
+      canInput: false,
+      sdm: false,
+      ops: false,
+      billing: false,
+      hapus: false,
+      export: true,
+    });
   });
 
   it("admin has every permission and the admin menu", () => {
-    expect(permissions(admin!)).toMatchObject({ admin: true, sdm: true, ops: true, billing: true, hapus: true, export: true });
+    expect(permissions(admin ?? null)).toMatchObject({
+      admin: true,
+      sdm: true,
+      ops: true,
+      billing: true,
+      hapus: true,
+      export: true,
+    });
   });
 
   it("starting accounts use the requested usernames and passwords", () => {
@@ -109,6 +153,114 @@ describe("CSV import", () => {
       "2026-11-01,Budi,RM1,dr. A,5500000,5200000,900000,250000,300000,50000,1000000,90000,80000,750000,0,350000";
     const { rows, errors } = parseCsv(csv, () => "id");
     expect(errors).toEqual([]);
-    expect(rows[0]).toMatchObject({ tanggal: "2026-11-01", nama: "Budi", rm: "RM1", dpjp: "dr. A", inacbgs: 5_500_000, billing: 5_200_000, darah: 750_000, opsLain: 350_000 });
+    expect(rows[0]).toMatchObject({
+      tanggal: "2026-11-01",
+      nama: "Budi",
+      rm: "RM1",
+      dpjp: "dr. A",
+      inacbgs: 5_500_000,
+      billing: 5_200_000,
+      darah: 750_000,
+      opsLain: 350_000,
+    });
   });
+});
+
+const up = (over: Partial<Patient> = {}) =>
+  p({
+    jenisNaikKelas: "Biasa",
+    kelasAwal: "Kelas 2",
+    kelasTujuan: "Kelas 1",
+    tambahanNaikKelas: 500_000,
+    inacbgs: 10_000_000,
+    billing: 8_000_000,
+    ...over,
+  });
+describe("Inpatient and upgrade rules", () => {
+  it("requires SEP", () => expect(validatePatient(p({ noSep: "" }))).not.toBeNull());
+  it("allows repeated RM for distinct SEP", () => {
+    const rows = [p({ rm: "RM1", noSep: "SEP1" }), p({ rm: "RM1", noSep: "SEP2" })];
+    const result = parseCsv(toCsv(rows, false), () => "");
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toHaveLength(2);
+  });
+  it("rejects duplicate SEP in import", () => {
+    const result = parseCsv(toCsv([p({ noSep: "SEP1" }), p({ noSep: "sep1" })], false), () => "");
+    expect(result.rows).toHaveLength(1);
+    expect(result.errors).toHaveLength(1);
+  });
+  it("LOS includes admission and discharge days", () =>
+    expect(los(p({ tanggal: "2026-11-01", tanggalPulang: "2026-11-03" }))).toBe(3));
+  it("LOS is absent without discharge", () => expect(los(p({}))).toBeNull());
+  it("rejects discharge before admission", () =>
+    expect(validatePatient(p({ tanggalPulang: "2026-10-31" }))).not.toBeNull());
+  it("rejects equal or lower class", () => {
+    expect(validatePatient(up({ kelasTujuan: "Kelas 2" }))).not.toBeNull();
+    expect(validatePatient(up({ kelasTujuan: "Kelas 3" }))).not.toBeNull();
+    expect(validatePatient(up({ kelasTujuan: "VIP" }))).toBeNull();
+  });
+  it("COB requires a selected payer", () =>
+    expect(validatePatient(up({ jenisNaikKelas: "COB", penjaminId: "" }))).toBe(
+      "Pilih Penjamin COB dulu",
+    ));
+  it("upgrades require positive extra cost", () => {
+    expect(validatePatient(up({ tambahanNaikKelas: 0 }))).not.toBeNull();
+    expect(validatePatient(up({ tambahanNaikKelas: -1 }))).not.toBeNull();
+  });
+  it("total revenue includes upgrade cost", () =>
+    expect(calc(up()).totalPendapatan).toBe(10_500_000));
+  it("investment remains 25% of INACBGs alone", () => expect(calc(up()).investasi).toBe(2_500_000));
+  it("saving deducts investment, staff and operations from revenue", () =>
+    expect(calc(up({ jasaDpjp: 1_000_000, farmasi: 2_000_000 })).saving).toBe(5_000_000));
+  it("difference uses total revenue", () => expect(calc(up()).selisih).toBe(2_500_000));
+  it("CRR uses total revenue divided by billing", () => expect(calc(up()).crr).toBe(131.25));
+  it("aggregates upgrade revenue into main totals", () =>
+    expect(totals([up(), up()]).totalPendapatan).toBe(21_000_000));
+  it("exports and reads all new fields including multiple ICD codes", () => {
+    const sample = up({
+      icd10: "A09,J18.9",
+      tanggalPulang: "2026-11-03",
+      keteranganNaikKelas: "Pilihan keluarga",
+    });
+    const result = parseCsv(toCsv([sample]), () => "");
+    expect(result.errors).toEqual([]);
+    expect(result.rows[0]).toMatchObject({
+      noSep: "SEP1",
+      icd10: "A09,J18.9",
+      tanggalPulang: "2026-11-03",
+      tambahanNaikKelas: 500000,
+      keteranganNaikKelas: "Pilihan keluarga",
+    });
+  });
+  it("counts only upgraded patients and separates payer income", () => {
+    const s = upgradeStats([
+      p({}),
+      up(),
+      up({
+        jenisNaikKelas: "COB",
+        penjaminId: "p",
+        namaPenjaminCob: "Allianz",
+        tambahanNaikKelas: 750000,
+      }),
+    ]);
+    expect(s.biasa).toBe(1);
+    expect(s.cob).toBe(1);
+    expect(s.income).toBe(1250000);
+    expect(s.payers[0]).toMatchObject({
+      name: "Allianz",
+      count: 1,
+      value: 750000,
+      average: 750000,
+    });
+  });
+  it("last seven days includes today", () =>
+    expect(dateRangePreset("7 Hari Terakhir", "2026-11-20")).toEqual({
+      from: "2026-11-14",
+      to: "2026-11-20",
+    }));
+  it("last month handles year boundary", () =>
+    expect(dateRangePreset("Bulan Lalu", "2026-01-20")).toEqual({
+      from: "2025-12-01",
+      to: "2025-12-31",
+    }));
 });

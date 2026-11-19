@@ -1,12 +1,18 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { FileText, LayoutDashboard, LogOut, Users } from "lucide-react";
+import { FileText, LayoutDashboard, LogOut, Users, TrendingUp, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { permissions } from "@/lib/casemix";
 import type { Account } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({ me, active }: { me: Account; active: "dashboard" | "laporan" | "akun" }) {
+export function AppHeader({
+  me,
+  active,
+}: {
+  me: Account;
+  active: "dashboard" | "laporan" | "akun" | "naik-kelas" | "pengaturan";
+}) {
   const navigate = useNavigate();
   const perm = permissions(me);
   const aksesList = [
@@ -24,6 +30,8 @@ export function AppHeader({ me, active }: { me: Account; active: "dashboard" | "
 
   const nav = [
     { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
+    { key: "naik-kelas", to: "/naik-kelas", label: "Naik Kelas", icon: TrendingUp, show: true },
+    { key: "pengaturan", to: "/pengaturan", label: "Pengaturan", icon: Settings, show: perm.admin },
     { key: "laporan", to: "/laporan", label: "Laporan", icon: FileText, show: true },
     { key: "akun", to: "/akun", label: "Kelola Akun", icon: Users, show: perm.admin },
   ] as const;
@@ -36,28 +44,38 @@ export function AppHeader({ me, active }: { me: Account; active: "dashboard" | "
             <h1 className="font-display text-2xl leading-none md:text-3xl">Casemix RS V4</h1>
             <p className="mt-1.5 truncate text-xs text-primary-foreground/85 md:text-sm">
               Halo, <b>{me.nama || me.user}</b> · {me.role}
-              <span className="hidden sm:inline"> · Akses: {aksesList.length ? aksesList.join(", ") : "Lihat saja"}</span>
+              <span className="hidden sm:inline">
+                {" "}
+                · Akses: {aksesList.length ? aksesList.join(", ") : "Lihat saja"}
+              </span>
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={logout} className="bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25 hover:text-primary-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25 hover:text-primary-foreground"
+          >
             <LogOut /> Keluar
           </Button>
         </div>
         <nav className="mt-4 flex gap-1.5 overflow-x-auto">
-          {nav.filter((n) => n.show).map((n) => (
-            <Link
-              key={n.key}
-              to={n.to}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors md:text-sm",
-                active === n.key
-                  ? "bg-surface text-primary"
-                  : "bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20",
-              )}
-            >
-              <n.icon className="h-4 w-4" /> {n.label}
-            </Link>
-          ))}
+          {nav
+            .filter((n) => n.show)
+            .map((n) => (
+              <Link
+                key={n.key}
+                to={n.to}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors md:text-sm",
+                  active === n.key
+                    ? "bg-surface text-primary"
+                    : "bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20",
+                )}
+              >
+                <n.icon className="h-4 w-4" /> {n.label}
+              </Link>
+            ))}
         </nav>
       </div>
     </header>

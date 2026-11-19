@@ -36,4 +36,7 @@ use the editor.
 - Roles live in `user_roles`, per-account checkboxes in `user_permissions`; field-level input rights are enforced by the `enforce_patient_permissions` DB trigger, not only by hiding inputs. Why: hidden inputs alone can be bypassed.
 - Signed-in pages live under `src/routes/_authenticated/` (client-only gate redirects to `/`, the login page). Why: session is in browser storage.
 - Patient list refreshes live via a realtime subscription (`usePatientsLive`). Why: team members on other devices see changes immediately.
+- Admission dates map to the additive `tanggal_masuk` column; the database synchronizes legacy `tanggal` for published-version compatibility. Legacy SEP values stay null until staff supplies real values. Why: preserve existing records without inventing hospital identifiers.
+- COB payers use a team-readable, admin-write RLS master; patient rows reference the payer and snapshot its name, with database upgrade validation and restrictive deletion. Why: prevent bypassed validation and preserve historical payer records.
+- Upgrade statistics and date presets are pure functions in the casemix module; Excel loads its browser writer only on export. Why: share tested calculations and keep browser-only download code out of server execution.
 <!-- AGENT-MEMORY:END -->

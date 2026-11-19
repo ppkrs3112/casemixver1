@@ -2,7 +2,14 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import type { Akses, Patient, Role, UserAccount } from "@/lib/casemix";
+import {
+  emptyPatient,
+  validatePatient,
+  type Akses,
+  type Patient,
+  type Role,
+  type UserAccount,
+} from "@/lib/casemix";
 
 type Row = Database["public"]["Tables"]["patients"]["Row"];
 type Insert = Database["public"]["Tables"]["patients"]["Insert"];
@@ -12,7 +19,17 @@ const n = (v: unknown) => Number(v) || 0;
 export function fromRow(r: Row): Patient {
   return {
     id: r.id,
-    tanggal: r.tanggal,
+    tanggal: r.tanggal_masuk ?? r.tanggal,
+    noSep: r.no_sep ?? "",
+    tanggalPulang: r.tanggal_pulang ?? "",
+    icd10: r.icd10,
+    kelasAwal: r.kelas_awal,
+    kelasTujuan: r.kelas_tujuan,
+    jenisNaikKelas: r.jenis_naik_kelas as Patient["jenisNaikKelas"],
+    penjaminId: r.penjamin_id ?? "",
+    namaPenjaminCob: r.nama_penjamin_cob,
+    tambahanNaikKelas: n(r.tambahan_naik_kelas),
+    keteranganNaikKelas: r.keterangan_naik_kelas,
     nama: r.nama,
     rm: r.rm,
     dpjp: r.dpjp,
@@ -34,6 +51,17 @@ export function fromRow(r: Row): Patient {
 export function toRow(p: Patient): Insert {
   return {
     tanggal: p.tanggal,
+    tanggal_masuk: p.tanggal,
+    no_sep: p.noSep.trim(),
+    tanggal_pulang: p.tanggalPulang || null,
+    icd10: p.icd10,
+    kelas_awal: p.kelasAwal,
+    kelas_tujuan: p.kelasTujuan,
+    jenis_naik_kelas: p.jenisNaikKelas,
+    penjamin_id: p.penjaminId || null,
+    nama_penjamin_cob: p.namaPenjaminCob,
+    tambahan_naik_kelas: p.jenisNaikKelas === "Tidak" ? 0 : p.tambahanNaikKelas,
+    keterangan_naik_kelas: p.keteranganNaikKelas,
     nama: p.nama.trim(),
     rm: p.rm.trim(),
     dpjp: p.dpjp.trim(),
@@ -75,18 +103,52 @@ export const patientsQuery = queryOptions({
 });
 
 export async function savePatient(p: Patient) {
+  const invalid = validatePatient(p);
+  if (invalid) throw new Error(invalid);
   const row = toRow(p);
   const res = p.id
     ? await supabase.from("patients").update(row).eq("id", p.id)
     : await supabase.from("patients").insert(row);
-  if (res.error) throw new Error(res.error.message);
+  if (res.error)
+    throw new Error(
+      res.error.code === "23505"
+        ? "No SEP sudah digunakan. Gunakan SEP berbeda."
+        : res.error.message,
+    );
 }
 
+export async function preparePatients(list: Patient[]) {
+  const result = await supabase.from("cob_payers").select("*");
+  if (result.error) throw new Error(result.error.message);
+  const payers = result.data;
+  const seen = new Set<string>();
+  return list.map((raw) => {
+    const p = { ...emptyPatient(raw.tanggal), ...raw };
+    if (p.jenisNaikKelas === "COB") {
+      const payer = payers.find(
+        (x) => x.id === p.penjaminId || x.nama.toLowerCase() === p.namaPenjaminCob.toLowerCase(),
+      );
+      if (!payer)
+        throw new Error(`Penjamin ${p.namaPenjaminCob || "COB"} belum ada di Master Penjamin`);
+      p.penjaminId = payer.id;
+    }
+    const error = validatePatient(p);
+    if (error) throw new Error(`${p.nama}: ${error}`);
+    const sep = p.noSep.trim().toLowerCase();
+    if (seen.has(sep)) throw new Error(`No SEP duplikat: ${p.noSep}`);
+    seen.add(sep);
+    return p;
+  });
+}
 export async function insertPatients(list: Patient[]) {
-  for (let i = 0; i < list.length; i += 500) {
-    const { error } = await supabase.from("patients").insert(list.slice(i, i + 500).map(toRow));
-    if (error) throw new Error(error.message);
-  }
+  const prepared = await preparePatients(list);
+  const { error } = await supabase.from("patients").insert(prepared.map(toRow));
+  if (error)
+    throw new Error(
+      error.code === "23505"
+        ? "No SEP sudah digunakan. Tidak ada baris yang diimpor."
+        : error.message,
+    );
 }
 
 export async function deletePatient(id: string) {

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -10,23 +10,47 @@ import { PatientTable } from "@/components/casemix/PatientTable";
 import { PeriodBar } from "@/components/casemix/PeriodBar";
 import { StatCards } from "@/components/casemix/StatCards";
 import { usePatientsLive } from "@/hooks/use-patients-live";
-import { inPeriod, matchesSearch, periodLabel, permissions, totals, warnings, type Patient } from "@/lib/casemix";
+import {
+  inPeriod,
+  matchesSearch,
+  periodLabel,
+  permissions,
+  totals,
+  warnings,
+  type Patient,
+} from "@/lib/casemix";
 import { deletePatient, meQuery, patientsQuery, savePatient } from "@/lib/data";
+import { Choice } from "@/components/casemix/Choice";
+import { Button } from "@/components/ui/button";
+import { payersQuery } from "@/lib/payers";
+import { los } from "@/lib/casemix";
 import { defaultFilter, yearsOf } from "@/lib/period";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — Casemix RS V4" },
-      { name: "description", content: "Dashboard Casemix: INACBGs, billing, saving, CRR, alokasi SDM dan operasional per periode." },
+      {
+        name: "description",
+        content:
+          "Dashboard Casemix: INACBGs, billing, saving, CRR, alokasi SDM dan operasional per periode.",
+      },
       { property: "og:title", content: "Dashboard — Casemix RS V4" },
-      { property: "og:description", content: "Dashboard Casemix: INACBGs, billing, saving, CRR, alokasi SDM dan operasional per periode." },
+      {
+        property: "og:description",
+        content:
+          "Dashboard Casemix: INACBGs, billing, saving, CRR, alokasi SDM dan operasional per periode.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   loader: ({ context }) =>
-    Promise.all([context.queryClient.ensureQueryData(meQuery), context.queryClient.ensureQueryData(patientsQuery)]),
+    Promise.all([
+      context.queryClient.ensureQueryData(meQuery),
+      context.queryClient.ensureQueryData(patientsQuery),
+      context.queryClient.ensureQueryData(payersQuery),
+    ]),
   component: Dashboard,
 });
 
@@ -37,13 +61,32 @@ function Dashboard() {
   usePatientsLive();
 
   const [filter, setFilter] = useState(() => defaultFilter(all));
+  const [kind, setKind] = useState("");
+  const [losFilter, setLosFilter] = useState("");
+  const [dpjpFilter, setDpjpFilter] = useState("");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Patient | null>(null);
 
   const searched = useMemo(() => all.filter((p) => matchesSearch(p, search)), [all, search]);
   const filtered = useMemo(() => searched.filter((p) => inPeriod(p, filter)), [searched, filter]);
+  const tableRows = filtered.filter(
+    (p) =>
+      (!kind || p.jenisNaikKelas === kind) &&
+      (!dpjpFilter || p.dpjp === dpjpFilter) &&
+      (!losFilter ||
+        (losFilter === "Belum pulang"
+          ? los(p) === null
+          : losFilter === "1–3 hari"
+            ? (los(p) ?? 0) >= 1 && (los(p) ?? 0) <= 3
+            : losFilter === "4–7 hari"
+              ? (los(p) ?? 0) >= 4 && (los(p) ?? 0) <= 7
+              : (los(p) ?? 0) > 7)),
+  );
   const t = useMemo(() => totals(filtered), [filtered]);
-  const warnCount = useMemo(() => filtered.filter((p) => warnings(p).length > 0).length, [filtered]);
+  const warnCount = useMemo(
+    () => filtered.filter((p) => warnings(p).length > 0).length,
+    [filtered],
+  );
 
   if (!me) return null;
   const perm = permissions(me);
@@ -68,38 +111,109 @@ function Dashboard() {
 
   function onEdit(p: Patient) {
     setEditing(p);
-    requestAnimationFrame(() => document.getElementById("form-pasien")?.scrollIntoView({ behavior: "smooth" }));
+    requestAnimationFrame(() =>
+      document.getElementById("form-pasien")?.scrollIntoView({ behavior: "smooth" }),
+    );
   }
 
   return (
     <main className="mx-auto max-w-7xl px-3 py-3 md:px-6 md:py-6">
       <AppHeader me={me} active="dashboard" />
-      <PeriodBar filter={filter} onChange={setFilter} search={search} onSearch={setSearch} years={yearsOf(all)} />
+      <PeriodBar
+        filter={filter}
+        onChange={setFilter}
+        search={search}
+        onSearch={setSearch}
+        years={yearsOf(all)}
+      />
 
       <div className="space-y-4">
         <StatCards t={t} />
+        <Button asChild variant="soft-orange" className="w-full justify-between">
+          <Link to="/naik-kelas">Lihat Dashboard Naik Kelas →</Link>
+        </Button>
 
         {warnCount > 0 && (
           <div className="rounded-2xl border border-destructive/30 bg-destructive-soft p-3 text-sm font-semibold text-destructive">
-            ⚠ {warnCount} pasien pada periode ini melebihi batas Darah (Rp 700.000) atau PA (Rp 400.000). Lihat tanda ⚠ di tabel.
+            ⚠ {warnCount} pasien pada periode ini melebihi batas Darah (Rp 700.000) atau PA (Rp
+            400.000). Lihat tanda ⚠ di tabel.
           </div>
         )}
 
         <ChartsGrid trendSource={searched} filtered={filtered} totals={t} filter={filter} />
 
-        <PatientForm me={me} editing={editing} defaultDate={filter.tanggal} onSave={onSave} onCancelEdit={() => setEditing(null)} />
+        <PatientForm
+          me={me}
+          editing={editing}
+          defaultDate={filter.tanggal}
+          onSave={onSave}
+          onCancelEdit={() => setEditing(null)}
+        />
 
-        <DataTools me={me} all={all} filtered={filtered} periodText={periodLabel(filter)} onChanged={refresh} />
+        <DataTools
+          me={me}
+          all={all}
+          filtered={tableRows}
+          periodText={periodLabel(filter)}
+          onChanged={refresh}
+        />
 
         <section className="panel p-3 md:p-4">
           <h2 className="mb-3 text-base font-bold">
-            Data Pasien <span className="text-sm font-medium text-muted-foreground">· {filtered.length} dari {all.length}</span>
+            Data Pasien{" "}
+            <span className="text-sm font-medium text-muted-foreground">
+              · {tableRows.length} dari {all.length}
+            </span>
           </h2>
-          <PatientTable rows={filtered} canEdit={perm.canInput} canDelete={perm.hapus} onEdit={onEdit} onDelete={onDelete} />
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <Choice
+              id="main-kind"
+              label="Filter Naik Kelas"
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: "", label: "Semua" },
+                { value: "Tidak", label: "Tidak" },
+                "Biasa",
+                "COB",
+              ]}
+            />
+            <Choice
+              id="main-los"
+              label="Filter LOS"
+              value={losFilter}
+              onChange={setLosFilter}
+              options={[
+                { value: "", label: "Semua" },
+                "Belum pulang",
+                "1–3 hari",
+                "4–7 hari",
+                "> 7 hari",
+              ]}
+            />
+            <Choice
+              id="main-dpjp"
+              label="Filter DPJP"
+              value={dpjpFilter}
+              onChange={setDpjpFilter}
+              options={[
+                { value: "", label: "Semua" },
+                ...[...new Set(all.map((p) => p.dpjp).filter(Boolean))].sort(),
+              ]}
+            />
+          </div>
+          <PatientTable
+            rows={tableRows}
+            canEdit={perm.canInput}
+            canDelete={perm.hapus}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </section>
 
         <p className="pb-4 text-center text-[11px] text-muted-foreground">
-          Selisih = INACBGs − Billing · CRR = INACBGs ÷ Billing × 100% · Saving = INACBGs − Investasi 25% − SDM − Ops
+          Selisih = Total Pendapatan − Billing · CRR = Total Pendapatan ÷ Billing × 100% · Saving =
+          Total Pendapatan − Investasi (25% INACBGs) − SDM − Ops
         </p>
       </div>
     </main>

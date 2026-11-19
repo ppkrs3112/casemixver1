@@ -15,7 +15,17 @@ export const MAX_PA = 400_000;
 
 export interface Patient {
   id: string;
-  tanggal: string; // YYYY-MM-DD
+  tanggal: string; // admission YYYY-MM-DD
+  noSep: string;
+  tanggalPulang: string;
+  icd10: string;
+  kelasAwal: string;
+  kelasTujuan: string;
+  jenisNaikKelas: "Tidak" | "Biasa" | "COB";
+  penjaminId: string;
+  namaPenjaminCob: string;
+  tambahanNaikKelas: number;
+  keteranganNaikKelas: string;
   nama: string;
   rm: string;
   dpjp: string;
@@ -82,14 +92,23 @@ export const usernameToEmail = (u: string) => `${normalizeUsername(u)}@casemix.l
 
 export function presetAkses(role: Role): Akses {
   if (role === "Admin") return { sdm: true, ops: true, billing: true, hapus: true, export: true };
-  if (role === "Viewer") return { sdm: false, ops: false, billing: false, hapus: false, export: true };
+  if (role === "Viewer")
+    return { sdm: false, ops: false, billing: false, hapus: false, export: true };
   return { sdm: true, ops: true, billing: true, hapus: false, export: true };
 }
 
 /** Effective permissions: a Viewer can never input, edit or delete, whatever the checkboxes say. */
 export function permissions(u: UserAccount | null) {
   if (!u) {
-    return { canInput: false, sdm: false, ops: false, billing: false, hapus: false, export: false, admin: false };
+    return {
+      canInput: false,
+      sdm: false,
+      ops: false,
+      billing: false,
+      hapus: false,
+      export: false,
+      admin: false,
+    };
   }
   const viewer = u.role === "Viewer";
   return {
@@ -104,6 +123,7 @@ export function permissions(u: UserAccount | null) {
 }
 
 export interface Calc {
+  totalPendapatan: number;
   alokasiSdm: number;
   alokasiOps: number;
   investasi: number;
@@ -122,15 +142,17 @@ export function calc(p: Pick<Patient, keyof Patient> | Patient): Calc {
   const investasi = p.inacbgs * ALOKASI.investasi;
   const sdm = p.jasaDpjp + p.jasaDu + p.jasaPenunjang + p.konsul;
   const ops = p.farmasi + p.lab + p.radiologi + p.darah + p.pa + p.opsLain;
+  const totalPendapatan = p.inacbgs + (p.tambahanNaikKelas || 0);
   return {
+    totalPendapatan,
     alokasiSdm,
     alokasiOps,
     investasi,
     sdm,
     ops,
-    saving: p.inacbgs - investasi - sdm - ops,
-    selisih: p.inacbgs - p.billing,
-    crr: crrOf(p.inacbgs, p.billing),
+    saving: totalPendapatan - investasi - sdm - ops,
+    selisih: totalPendapatan - p.billing,
+    crr: crrOf(totalPendapatan, p.billing),
     sisaSdm: alokasiSdm - sdm,
     sisaOps: alokasiOps - ops,
   };
@@ -142,13 +164,16 @@ export function crrOf(inacbgs: number, billing: number) {
 
 export function warnings(p: Pick<Patient, "darah" | "pa">): string[] {
   const w: string[] = [];
-  if (p.darah > MAX_DARAH) w.push(`Darah melebihi batas ${formatRp(MAX_DARAH)} (lebih ${formatRp(p.darah - MAX_DARAH)})`);
-  if (p.pa > MAX_PA) w.push(`PA melebihi batas ${formatRp(MAX_PA)} (lebih ${formatRp(p.pa - MAX_PA)})`);
+  if (p.darah > MAX_DARAH)
+    w.push(`Darah melebihi batas ${formatRp(MAX_DARAH)} (lebih ${formatRp(p.darah - MAX_DARAH)})`);
+  if (p.pa > MAX_PA)
+    w.push(`PA melebihi batas ${formatRp(MAX_PA)} (lebih ${formatRp(p.pa - MAX_PA)})`);
   return w;
 }
 
 export const formatRp = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
-export const formatPct = (n: number) => (n || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + "%";
+export const formatPct = (n: number) =>
+  (n || 0).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + "%";
 export const formatShort = (n: number) => {
   const a = Math.abs(n);
   if (a >= 1e9) return (n / 1e9).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " M";
@@ -176,14 +201,28 @@ export interface Totals extends Calc {
 }
 
 const SUM_KEYS = [
-  "inacbgs", "billing", "jasaDpjp", "jasaDu", "jasaPenunjang", "konsul",
-  "farmasi", "lab", "radiologi", "darah", "pa", "opsLain",
+  "tambahanNaikKelas",
+  "inacbgs",
+  "billing",
+  "jasaDpjp",
+  "jasaDu",
+  "jasaPenunjang",
+  "konsul",
+  "farmasi",
+  "lab",
+  "radiologi",
+  "darah",
+  "pa",
+  "opsLain",
 ] as const;
 
 export function totals(list: Patient[]): Totals {
-  const t = Object.fromEntries(SUM_KEYS.map((k) => [k, 0])) as Record<(typeof SUM_KEYS)[number], number>;
+  const t = Object.fromEntries(SUM_KEYS.map((k) => [k, 0])) as Record<
+    (typeof SUM_KEYS)[number],
+    number
+  >;
   for (const p of list) for (const k of SUM_KEYS) t[k] += p[k] || 0;
-  const c = calc({ ...t, id: "", tanggal: "", nama: "", rm: "", dpjp: "" });
+  const c = calc({ ...emptyPatient(""), ...t });
   return { ...t, ...c, count: list.length };
 }
 
@@ -205,13 +244,36 @@ export function inPeriod(p: Patient, f: PeriodFilter) {
 export function matchesSearch(p: Patient, q: string) {
   const s = q.trim().toLowerCase();
   if (!s) return true;
-  return `${p.nama} ${p.rm} ${p.dpjp}`.toLowerCase().includes(s);
+  return `${p.noSep} ${p.nama} ${p.rm} ${p.dpjp} ${p.icd10}`.toLowerCase().includes(s);
 }
 
-export const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+export const BULAN = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mei",
+  "Jun",
+  "Jul",
+  "Agu",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Des",
+];
 export const BULAN_PANJANG = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 export function periodLabel(f: PeriodFilter) {
@@ -234,6 +296,7 @@ export interface TrendPoint {
   inacbgs: number;
   billing: number;
   saving: number;
+  totalPendapatan: number;
   count: number;
 }
 
@@ -245,7 +308,14 @@ export function trend(list: Patient[], f: PeriodFilter): TrendPoint[] {
   const groups = new Map<string, Patient[]>();
   let keys: string[] = [];
   if (f.mode === "harian") {
-    const ym = (f.tanggal || list.map((p) => p.tanggal).sort().at(-1) || "").slice(0, 7);
+    const ym = (
+      f.tanggal ||
+      list
+        .map((p) => p.tanggal)
+        .sort()
+        .at(-1) ||
+      ""
+    ).slice(0, 7);
     if (ym) {
       const y = Number(ym.slice(0, 4));
       const m = Number(ym.slice(5, 7));
@@ -254,7 +324,14 @@ export function trend(list: Patient[], f: PeriodFilter): TrendPoint[] {
     }
     for (const p of list) if (p.tanggal.startsWith(ym)) push(groups, p.tanggal, p);
   } else if (f.mode === "bulanan") {
-    const y = (f.bulan || list.map((p) => p.tanggal).sort().at(-1) || "").slice(0, 4);
+    const y = (
+      f.bulan ||
+      list
+        .map((p) => p.tanggal)
+        .sort()
+        .at(-1) ||
+      ""
+    ).slice(0, 4);
     if (y) keys = BULAN.map((_, i) => `${y}-${String(i + 1).padStart(2, "0")}`);
     for (const p of list) if (p.tanggal.startsWith(y)) push(groups, p.tanggal.slice(0, 7), p);
   } else {
@@ -266,7 +343,15 @@ export function trend(list: Patient[], f: PeriodFilter): TrendPoint[] {
     let label = key;
     if (f.mode === "harian") label = String(Number(key.slice(8)));
     if (f.mode === "bulanan") label = BULAN[Number(key.slice(5)) - 1] ?? key;
-    return { key, label, inacbgs: t.inacbgs, billing: t.billing, saving: t.saving, count: t.count };
+    return {
+      key,
+      label,
+      inacbgs: t.inacbgs,
+      billing: t.billing,
+      saving: t.saving,
+      totalPendapatan: t.totalPendapatan,
+      count: t.count,
+    };
   });
 }
 
@@ -288,10 +373,20 @@ export function opsComponents(t: Totals): OpsComponent[] {
   return [
     { key: "farmasi", label: "Farmasi", alokasi: t.inacbgs * ALOKASI.farmasi, terpakai: t.farmasi },
     { key: "lab", label: "Lab", alokasi: t.inacbgs * ALOKASI.lab, terpakai: t.lab },
-    { key: "radiologi", label: "Radiologi", alokasi: t.inacbgs * ALOKASI.radiologi, terpakai: t.radiologi },
+    {
+      key: "radiologi",
+      label: "Radiologi",
+      alokasi: t.inacbgs * ALOKASI.radiologi,
+      terpakai: t.radiologi,
+    },
     { key: "darah", label: "Darah", alokasi: MAX_DARAH * t.count, terpakai: t.darah },
     { key: "pa", label: "PA", alokasi: MAX_PA * t.count, terpakai: t.pa },
-    { key: "opsLain", label: "Ops Lainnya", alokasi: t.inacbgs * ALOKASI.opsLain, terpakai: t.opsLain },
+    {
+      key: "opsLain",
+      label: "Ops Lainnya",
+      alokasi: t.inacbgs * ALOKASI.opsLain,
+      terpakai: t.opsLain,
+    },
   ];
 }
 
@@ -301,6 +396,8 @@ export interface DpjpRow {
   inacbgs: number;
   billing: number;
   count: number;
+  totalPendapatan: number;
+  selisih: number;
 }
 
 export function crrPerDpjp(list: Patient[]): DpjpRow[] {
@@ -309,7 +406,15 @@ export function crrPerDpjp(list: Patient[]): DpjpRow[] {
   return [...g.entries()]
     .map(([dpjp, ps]) => {
       const t = totals(ps);
-      return { dpjp, crr: crrOf(t.inacbgs, t.billing), inacbgs: t.inacbgs, billing: t.billing, count: t.count };
+      return {
+        dpjp,
+        crr: t.crr,
+        totalPendapatan: t.totalPendapatan,
+        selisih: t.selisih,
+        inacbgs: t.inacbgs,
+        billing: t.billing,
+        count: t.count,
+      };
     })
     .sort((a, b) => b.crr - a.crr);
 }
@@ -321,14 +426,16 @@ export function insightTrend(points: TrendPoint[], t: Totals): string[] {
   const out: string[] = [];
   out.push(
     t.selisih >= 0
-      ? `INACBGs lebih besar dari Billing sebesar ${formatRp(t.selisih)} (CRR ${formatPct(t.crr)}).`
-      : `Billing melebihi INACBGs sebesar ${formatRp(-t.selisih)} (CRR ${formatPct(t.crr)}) — RS merugi.`,
+      ? `Total pendapatan lebih besar dari Billing sebesar ${formatRp(t.selisih)} (CRR ${formatPct(t.crr)}).`
+      : `Billing melebihi total pendapatan sebesar ${formatRp(-t.selisih)} (CRR ${formatPct(t.crr)}) — RS merugi.`,
   );
   const withData = points.filter((p) => p.count > 0);
   if (withData.length > 1) {
     const best = withData.reduce((a, b) => (b.saving > a.saving ? b : a));
     const worst = withData.reduce((a, b) => (b.saving < a.saving ? b : a));
-    out.push(`Saving tertinggi di ${best.label} (${formatRp(best.saving)}), terendah di ${worst.label} (${formatRp(worst.saving)}).`);
+    out.push(
+      `Saving tertinggi di ${best.label} (${formatRp(best.saving)}), terendah di ${worst.label} (${formatRp(worst.saving)}).`,
+    );
   }
   return out;
 }
@@ -354,7 +461,9 @@ export function insightSdm(t: Totals): string[] {
     ["Konsul Telp", t.konsul],
   ] as const;
   const top = parts.reduce((a, b) => (b[1] > a[1] ? b : a));
-  return [`Komponen SDM terbesar: ${top[0]} ${formatRp(top[1])} (${formatPct((top[1] / t.sdm) * 100)} dari SDM terpakai).`];
+  return [
+    `Komponen SDM terbesar: ${top[0]} ${formatRp(top[1])} (${formatPct((top[1] / t.sdm) * 100)} dari SDM terpakai).`,
+  ];
 }
 
 export function insightOps(comps: OpsComponent[], t: Totals): string[] {
@@ -367,19 +476,28 @@ export function insightOps(comps: OpsComponent[], t: Totals): string[] {
 export function insightOpsPie(t: Totals): string[] {
   if (t.ops === 0) return ["Belum ada pemakaian operasional pada periode ini."];
   const parts = [
-    ["Farmasi", t.farmasi], ["Lab", t.lab], ["Radiologi", t.radiologi],
-    ["Darah", t.darah], ["PA", t.pa], ["Ops Lainnya", t.opsLain],
+    ["Farmasi", t.farmasi],
+    ["Lab", t.lab],
+    ["Radiologi", t.radiologi],
+    ["Darah", t.darah],
+    ["PA", t.pa],
+    ["Ops Lainnya", t.opsLain],
   ] as const;
   const top = parts.reduce((a, b) => (b[1] > a[1] ? b : a));
-  return [`Komponen operasional terbesar: ${top[0]} ${formatRp(top[1])} (${formatPct((top[1] / t.ops) * 100)}).`];
+  return [
+    `Komponen operasional terbesar: ${top[0]} ${formatRp(top[1])} (${formatPct((top[1] / t.ops) * 100)}).`,
+  ];
 }
 
 export function insightInvest(t: Totals): string[] {
   if (t.count === 0) return ["Belum ada data pada periode ini."];
   const out = [
-    t.saving >= 0 ? `Saving positif ${formatRp(t.saving)} setelah investasi 25%.` : `Saving minus ${formatRp(-t.saving)} — biaya melebihi porsi INACBGs.`,
+    t.saving >= 0
+      ? `Saving positif ${formatRp(t.saving)} setelah investasi 25%.`
+      : `Saving minus ${formatRp(-t.saving)} — biaya melebihi total pendapatan.`,
   ];
-  if (t.selisih < 0) out.push(`Selisih minus ${formatRp(-t.selisih)}: billing lebih besar dari klaim INACBGs.`);
+  if (t.selisih < 0)
+    out.push(`Selisih minus ${formatRp(-t.selisih)}: billing lebih besar dari total pendapatan.`);
   return out;
 }
 
@@ -387,18 +505,64 @@ export function insightDpjp(rows: DpjpRow[]): string[] {
   if (rows.length === 0) return ["Belum ada data DPJP pada periode ini."];
   const rugi = rows.filter((r) => r.billing > 0 && r.crr < 100);
   if (rugi.length === 0) return ["Semua DPJP memiliki CRR ≥ 100%."];
-  return [`${rugi.length} DPJP dengan CRR < 100%: ${rugi.slice(-3).map((r) => `${r.dpjp} (${formatPct(r.crr)})`).join(", ")}.`];
+  return [
+    `${rugi.length} DPJP dengan CRR < 100%: ${rugi
+      .slice(-3)
+      .map((r) => `${r.dpjp} (${formatPct(r.crr)})`)
+      .join(", ")}.`,
+  ];
 }
 
 // ---------- CSV ----------
 
 export const CSV_HEADER =
-  "Tanggal,Nama,NoRM,DPJP,INACBGs,BillingRS,JasaDPJP,JasaDU,JasaPenunjang,Konsul,Farmasi,Lab,Radiologi,Darah,PA,OpsLain";
-
-const CSV_FIELDS: (keyof Patient)[] = [
-  "tanggal", "nama", "rm", "dpjp", "inacbgs", "billing", "jasaDpjp", "jasaDu",
-  "jasaPenunjang", "konsul", "farmasi", "lab", "radiologi", "darah", "pa", "opsLain",
-];
+  "NoSEP,TanggalMasuk,TanggalPulang,Nama,NoRM,ICD10,DPJP,KelasAwal,KelasTujuan,RuteNaikKelas,JenisNaikKelas,NamaPenjaminCOB,TambahanNaikKelas,KeteranganNaikKelas,INACBGs,Billing,JasaDPJP,JasaDU,JasaPenunjang,Konsul,Farmasi,Lab,Radiologi,Darah,PA,OpsLain";
+export const CSV_FIELDS = [
+  "noSep",
+  "tanggal",
+  "tanggalPulang",
+  "nama",
+  "rm",
+  "icd10",
+  "dpjp",
+  "kelasAwal",
+  "kelasTujuan",
+  "rute",
+  "jenisNaikKelas",
+  "namaPenjaminCob",
+  "tambahanNaikKelas",
+  "keteranganNaikKelas",
+  "inacbgs",
+  "billing",
+  "jasaDpjp",
+  "jasaDu",
+  "jasaPenunjang",
+  "konsul",
+  "farmasi",
+  "lab",
+  "radiologi",
+  "darah",
+  "pa",
+  "opsLain",
+] as const;
+const LEGACY_FIELDS = [
+  "tanggal",
+  "nama",
+  "rm",
+  "dpjp",
+  "inacbgs",
+  "billing",
+  "jasaDpjp",
+  "jasaDu",
+  "jasaPenunjang",
+  "konsul",
+  "farmasi",
+  "lab",
+  "radiologi",
+  "darah",
+  "pa",
+  "opsLain",
+] as const;
 
 function splitCsvLine(line: string, sep: string): string[] {
   const out: string[] = [];
@@ -407,12 +571,16 @@ function splitCsvLine(line: string, sep: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (q) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') q = false;
+      if (ch === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') q = false;
       else cur += ch;
     } else if (ch === '"') q = true;
-    else if (ch === sep) { out.push(cur); cur = ""; }
-    else cur += ch;
+    else if (ch === sep) {
+      out.push(cur);
+      cur = "";
+    } else cur += ch;
   }
   out.push(cur);
   return out.map((s) => s.trim());
@@ -421,7 +589,8 @@ function splitCsvLine(line: string, sep: string): string[] {
 function toNumber(s: string) {
   const clean = (s || "").replace(/[^\d,.-]/g, "");
   // Accept "1500000", "1.500.000" (id-ID) and "1500000.50"
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(clean)) return Number(clean.replace(/\./g, "").replace(",", ".")) || 0;
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(clean))
+    return Number(clean.replace(/\./g, "").replace(",", ".")) || 0;
   return Number(clean.replace(",", ".")) || 0;
 }
 
@@ -433,26 +602,52 @@ function normalizeDate(s: string) {
   return t;
 }
 
-export function parseCsv(text: string, makeId: () => string): { rows: Patient[]; errors: string[] } {
-  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((l) => l.trim());
+export function parseCsv(
+  text: string,
+  makeId: () => string,
+): { rows: Patient[]; errors: string[] } {
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((l) => l.trim());
   const errors: string[] = [];
-  if (lines.length === 0) return { rows: [], errors: ["File kosong."] };
+  if (!lines.length) return { rows: [], errors: ["File kosong."] };
   const first = lines[0] ?? "";
-  const sep = first.includes(";") && !first.includes(",") ? ";" : ",";
-  const start = /tanggal/i.test(first) ? 1 : 0;
+  const sep =
+    first.startsWith("NoSEP;") || (first.includes(";") && !first.includes(",")) ? ";" : ",";
+  const modern = /^NoSEP/i.test(first);
+  const start = /tanggal|nosep/i.test(first) ? 1 : 0;
   const rows: Patient[] = [];
+  const seen = new Set<string>();
   for (let i = start; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i] ?? "", sep);
-    if (cols.length < 6) { errors.push(`Baris ${i + 1}: kolom kurang.`); continue; }
-    const p = { id: makeId() } as Patient;
-    CSV_FIELDS.forEach((f, idx) => {
+    const p = { ...emptyPatient(""), id: makeId() };
+    const fields = modern ? CSV_FIELDS : LEGACY_FIELDS;
+    fields.forEach((f, idx) => {
       const v = cols[idx] ?? "";
-      if (f === "tanggal") p.tanggal = normalizeDate(v);
-      else if (f === "nama" || f === "rm" || f === "dpjp") p[f] = v;
-      else (p as unknown as Record<string, number>)[f] = toNumber(v);
+      if (f === "rute") return;
+      if (f === "tanggal" || f === "tanggalPulang") p[f] = normalizeDate(v);
+      else if (f === "jenisNaikKelas")
+        p[f] = /COB/i.test(v) ? "COB" : /Biasa/i.test(v) ? "Biasa" : "Tidak";
+      else if (typeof p[f] === "number") (p as unknown as Record<string, unknown>)[f] = toNumber(v);
+      else (p as unknown as Record<string, unknown>)[f] = v;
     });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.tanggal)) { errors.push(`Baris ${i + 1}: tanggal tidak valid.`); continue; }
-    if (!p.nama) { errors.push(`Baris ${i + 1}: nama kosong.`); continue; }
+    // Legacy files remain readable; saving requires the missing SEP to be supplied.
+    const error = modern
+      ? validatePatient(p, false)
+      : !p.tanggal || !p.nama
+        ? "Tanggal dan nama wajib diisi"
+        : null;
+    if (error) {
+      errors.push(`Baris ${i + 1}: ${error}`);
+      continue;
+    }
+    const key = p.noSep.toLowerCase();
+    if (key && seen.has(key)) {
+      errors.push(`Baris ${i + 1}: No SEP duplikat`);
+      continue;
+    }
+    if (key) seen.add(key);
     rows.push(p);
   }
   return { rows, errors };
@@ -465,17 +660,27 @@ const esc = (v: string | number) => {
 
 export function toCsv(list: Patient[], withCalc = true): string {
   const head = withCalc
-    ? CSV_HEADER + ",AlokasiSDM,SDMTerpakai,SisaSDM,AlokasiOps,OpsTerpakai,SisaOps,Investasi,Selisih,CRR,Saving"
+    ? CSV_HEADER +
+      ",LOS,TotalPendapatan,AlokasiSDM,SDMTerpakai,SisaSDM,AlokasiOps,OpsTerpakai,SisaOps,Investasi,Selisih,CRR,Saving"
     : CSV_HEADER;
   const lines = list.map((p) => {
-    const base = CSV_FIELDS.map((f) => esc(p[f]));
+    const base = CSV_FIELDS.map((f) => esc(f === "rute" ? upgradeRoute(p) : p[f]));
     if (!withCalc) return base.join(",");
     const c = calc(p);
     return [
       ...base,
-      Math.round(c.alokasiSdm), Math.round(c.sdm), Math.round(c.sisaSdm),
-      Math.round(c.alokasiOps), Math.round(c.ops), Math.round(c.sisaOps),
-      Math.round(c.investasi), Math.round(c.selisih), c.crr.toFixed(2), Math.round(c.saving),
+      los(p) ?? "-",
+      Math.round(c.totalPendapatan),
+      Math.round(c.alokasiSdm),
+      Math.round(c.sdm),
+      Math.round(c.sisaSdm),
+      Math.round(c.alokasiOps),
+      Math.round(c.ops),
+      Math.round(c.sisaOps),
+      Math.round(c.investasi),
+      Math.round(c.selisih),
+      c.crr.toFixed(2),
+      Math.round(c.saving),
     ].join(",");
   });
   return [head, ...lines].join("\n");
@@ -483,12 +688,126 @@ export function toCsv(list: Patient[], withCalc = true): string {
 
 export const CSV_TEMPLATE =
   CSV_HEADER +
-  "\n2026-11-01,Budi Santoso,RM001234,dr. Andi Sp.PD,5500000,5200000,900000,250000,300000,50000,1000000,90000,80000,0,0,350000\n";
+  '\nSEP000123,2026-11-01,2026-11-03,Budi Santoso,RM001234,"A09,J18.9",dr. Andi Sp.PD,Kelas 2,Kelas 1,Kelas 2 -> Kelas 1,Biasa,Bayar Sendiri,500000,,5500000,5200000,900000,250000,300000,50000,1000000,90000,80000,0,0,350000\n';
 
 export function emptyPatient(tanggal: string): Patient {
   return {
-    id: "", tanggal, nama: "", rm: "", dpjp: "", inacbgs: 0, billing: 0,
-    jasaDpjp: 0, jasaDu: 0, jasaPenunjang: 0, konsul: 0,
-    farmasi: 0, lab: 0, radiologi: 0, darah: 0, pa: 0, opsLain: 0,
+    noSep: "",
+    tanggalPulang: "",
+    icd10: "",
+    kelasAwal: "Kelas 3",
+    kelasTujuan: "",
+    jenisNaikKelas: "Tidak",
+    penjaminId: "",
+    namaPenjaminCob: "",
+    tambahanNaikKelas: 0,
+    keteranganNaikKelas: "",
+    id: "",
+    tanggal,
+    nama: "",
+    rm: "",
+    dpjp: "",
+    inacbgs: 0,
+    billing: 0,
+    jasaDpjp: 0,
+    jasaDu: 0,
+    jasaPenunjang: 0,
+    konsul: 0,
+    farmasi: 0,
+    lab: 0,
+    radiologi: 0,
+    darah: 0,
+    pa: 0,
+    opsLain: 0,
   };
+}
+
+export const CLASSES = ["Kelas 3", "Kelas 2", "Kelas 1", "VIP", "VVIP"];
+export function los(p: Pick<Patient, "tanggal" | "tanggalPulang">): number | null {
+  if (!p.tanggalPulang) return null;
+  return Math.round((Date.parse(p.tanggalPulang) - Date.parse(p.tanggal)) / 86400000) + 1;
+}
+export function upgradeRoute(p: Patient) {
+  return p.jenisNaikKelas === "Tidak" ? "-" : `${p.kelasAwal} -> ${p.kelasTujuan}`;
+}
+export function validatePatient(p: Patient, requirePayer = true): string | null {
+  if (!p.noSep.trim()) return "No SEP wajib diisi";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.tanggal) || !Number.isFinite(Date.parse(p.tanggal)))
+    return "Tanggal masuk tidak valid";
+  if (
+    p.tanggalPulang &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(p.tanggalPulang) || !Number.isFinite(Date.parse(p.tanggalPulang)))
+  )
+    return "Tanggal pulang tidak valid";
+  if (p.tanggalPulang && p.tanggalPulang < p.tanggal)
+    return "Tanggal pulang tidak boleh sebelum tanggal masuk";
+  if (!p.nama.trim()) return "Nama pasien wajib diisi";
+  if (!CLASSES.includes(p.kelasAwal)) return "Kelas awal tidak valid";
+  if (!["Tidak", "Biasa", "COB"].includes(p.jenisNaikKelas)) return "Jenis naik kelas tidak valid";
+  if (p.jenisNaikKelas !== "Tidak") {
+    if (CLASSES.indexOf(p.kelasTujuan) <= CLASSES.indexOf(p.kelasAwal))
+      return "Kelas tujuan harus lebih tinggi dari kelas awal";
+    if (!Number.isFinite(p.tambahanNaikKelas) || p.tambahanNaikKelas <= 0)
+      return "Tambahan biaya wajib lebih dari 0";
+    if (p.jenisNaikKelas === "COB" && !(requirePayer ? p.penjaminId : p.namaPenjaminCob))
+      return "Pilih Penjamin COB dulu";
+  }
+  return null;
+}
+export function upgradeStats(rows: Patient[]) {
+  const upgraded = rows.filter((p) => p.jenisNaikKelas !== "Tidak");
+  const biasa = upgraded.filter((p) => p.jenisNaikKelas === "Biasa");
+  const cob = upgraded.filter((p) => p.jenisNaikKelas === "COB");
+  const income = (ps: Patient[]) => ps.reduce((s, p) => s + p.tambahanNaikKelas, 0);
+  const groups = (ps: Patient[], key: (p: Patient) => string) => {
+    const g = new Map<string, Patient[]>();
+    for (const p of ps) push(g, key(p), p);
+    return [...g]
+      .map(([name, list]) => ({
+        name,
+        count: list.length,
+        value: income(list),
+        average: income(list) / list.length,
+      }))
+      .sort((a, b) => b.value - a.value);
+  };
+  const dates = [...new Set(upgraded.map((p) => p.tanggal))].sort();
+  return {
+    upgraded,
+    biasa: biasa.length,
+    cob: cob.length,
+    incomeBiasa: income(biasa),
+    incomeCob: income(cob),
+    income: income(upgraded),
+    routes: groups(upgraded, upgradeRoute),
+    payers: groups(cob, (p) => p.namaPenjaminCob),
+    mix: [
+      { name: "Biasa", count: biasa.length, value: income(biasa) },
+      { name: "COB", count: cob.length, value: income(cob) },
+    ],
+    trend: dates.map((date) => ({
+      date,
+      biasa: income(biasa.filter((p) => p.tanggal === date)),
+      cob: income(cob.filter((p) => p.tanggal === date)),
+      countBiasa: biasa.filter((p) => p.tanggal === date).length,
+      countCob: cob.filter((p) => p.tanggal === date).length,
+    })),
+  };
+}
+export function dateRangePreset(preset: string, today: string) {
+  const d = new Date(`${today}T00:00:00Z`);
+  const iso = (x: Date) => x.toISOString().slice(0, 10);
+  if (preset === "Hari Ini") return { from: today, to: today };
+  if (preset === "7 Hari Terakhir") {
+    d.setUTCDate(d.getUTCDate() - 6);
+    return { from: iso(d), to: today };
+  }
+  if (preset === "Bulan Ini") return { from: today.slice(0, 7) + "-01", to: today };
+  if (preset === "Bulan Lalu") {
+    d.setUTCDate(0);
+    const to = iso(d);
+    d.setUTCDate(1);
+    return { from: iso(d), to };
+  }
+  return { from: "", to: "" };
 }

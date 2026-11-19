@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      cob_payers: {
+        Row: {
+          aktif: boolean
+          created_at: string
+          id: string
+          jenis: string
+          kontak: string
+          nama: string
+        }
+        Insert: {
+          aktif?: boolean
+          created_at?: string
+          id?: string
+          jenis?: string
+          kontak?: string
+          nama: string
+        }
+        Update: {
+          aktif?: boolean
+          created_at?: string
+          id?: string
+          jenis?: string
+          kontak?: string
+          nama?: string
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           billing: number
@@ -22,19 +49,30 @@ export type Database = {
           darah: number
           dpjp: string
           farmasi: number
+          icd10: string
           id: string
           inacbgs: number
           jasa_dpjp: number
           jasa_du: number
           jasa_penunjang: number
+          jenis_naik_kelas: string
+          kelas_awal: string
+          kelas_tujuan: string
+          keterangan_naik_kelas: string
           konsul: number
           lab: number
           nama: string
+          nama_penjamin_cob: string
+          no_sep: string | null
           ops_lain: number
           pa: number
+          penjamin_id: string | null
           radiologi: number
           rm: string
+          tambahan_naik_kelas: number
           tanggal: string
+          tanggal_masuk: string | null
+          tanggal_pulang: string | null
           updated_at: string
         }
         Insert: {
@@ -44,19 +82,30 @@ export type Database = {
           darah?: number
           dpjp?: string
           farmasi?: number
+          icd10?: string
           id?: string
           inacbgs?: number
           jasa_dpjp?: number
           jasa_du?: number
           jasa_penunjang?: number
+          jenis_naik_kelas?: string
+          kelas_awal?: string
+          kelas_tujuan?: string
+          keterangan_naik_kelas?: string
           konsul?: number
           lab?: number
           nama: string
+          nama_penjamin_cob?: string
+          no_sep?: string | null
           ops_lain?: number
           pa?: number
+          penjamin_id?: string | null
           radiologi?: number
           rm?: string
+          tambahan_naik_kelas?: number
           tanggal: string
+          tanggal_masuk?: string | null
+          tanggal_pulang?: string | null
           updated_at?: string
         }
         Update: {
@@ -66,22 +115,41 @@ export type Database = {
           darah?: number
           dpjp?: string
           farmasi?: number
+          icd10?: string
           id?: string
           inacbgs?: number
           jasa_dpjp?: number
           jasa_du?: number
           jasa_penunjang?: number
+          jenis_naik_kelas?: string
+          kelas_awal?: string
+          kelas_tujuan?: string
+          keterangan_naik_kelas?: string
           konsul?: number
           lab?: number
           nama?: string
+          nama_penjamin_cob?: string
+          no_sep?: string | null
           ops_lain?: number
           pa?: number
+          penjamin_id?: string | null
           radiologi?: number
           rm?: string
+          tambahan_naik_kelas?: number
           tanggal?: string
+          tanggal_masuk?: string | null
+          tanggal_pulang?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_penjamin_id_fkey"
+            columns: ["penjamin_id"]
+            isOneToOne: false
+            referencedRelation: "cob_payers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
