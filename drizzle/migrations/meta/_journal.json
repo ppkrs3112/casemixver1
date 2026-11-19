@@ -8,6 +8,13 @@
       "when": 1795123255240,
       "tag": "0000_casemix_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795125980823,
+      "tag": "0001_tighten_profiles_patients_read",
+      "breakpoints": true
     }
   ]
 }
