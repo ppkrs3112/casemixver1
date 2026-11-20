@@ -3,7 +3,6 @@ import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PatientTable } from "@/components/casemix/PatientTable";
@@ -11,7 +10,8 @@ import { PatientForm } from "@/components/casemix/PatientForm";
 import { DataTools } from "@/components/casemix/DataTools";
 import { meQuery, patientsQuery, savePatient, deletePatient } from "@/lib/data";
 import { payersQuery } from "@/lib/payers";
-import { permissions, matchesSearch, type Patient } from "@/lib/casemix";
+import { permissions, matchesSearchBy, inRange, type Patient, type SearchField } from "@/lib/casemix";
+import { FilterBar, DEFAULT_TIME, rangeOf, type TimeState } from "@/components/casemix/FilterBar";
 import { todayISO } from "@/lib/download";
 export const Route = createFileRoute("/_authenticated/pasien")({
   validateSearch: (s: Record<string, unknown>) => ({ q: typeof s["q"] === "string" ? s["q"] : "" }),
@@ -47,7 +47,10 @@ function Patients() {
   const [editing, setEditing] = useState<Patient | null>(null);
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
-  const rows = all.filter((p) => matchesSearch(p, search));
+  const [time, setTime] = useState<TimeState>(q ? { ...DEFAULT_TIME, kind: "semua" } : DEFAULT_TIME);
+  const [field, setField] = useState<SearchField>("semua");
+  const range = rangeOf(time);
+  const rows = all.filter((p) => matchesSearchBy(p, search, field) && inRange(p, range));
   if (!me) return null;
   const perm = permissions(me);
   const refresh = () => {
@@ -83,11 +86,17 @@ function Patients() {
           </Button>
         )}
       </div>
-      <Input
-        aria-label="Cari daftar pasien"
-        placeholder="Cari No SEP / Nama / No RM / ICD-10 / DPJP"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+      <FilterBar
+        time={time}
+        onTime={setTime}
+        search={search}
+        field={field}
+        onSearch={(v, f) => {
+          setSearch(v);
+          setField(f);
+        }}
+        count={rows.length}
+        onReset={() => setSearch("")}
       />
       <section className="rounded-lg border border-border-soft bg-surface p-4">
         <PatientTable
@@ -101,7 +110,7 @@ function Patients() {
           onDelete={remove}
         />
       </section>
-      <DataTools me={me} all={all} filtered={rows} periodText="semua-pasien" onChanged={refresh} />
+      <DataTools me={me} all={all} filtered={rows} periodText={range.label} onChanged={refresh} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>

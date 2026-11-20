@@ -29,3 +29,9 @@
 - [x] COB tetap kelas: validasi form/database, rute, tes
 - [x] Pengaturan Tampilan online: logo, warna, isi login, preview
 - [x] Verifikasi login, simpan pengaturan, COB, HP; data pasien lama tidak berubah
+
+## V4.4
+- [x] Preview Tampilan modal (2 tab, live)
+- [x] Sub-menu Pengaturan di sidebar
+- [x] Filter waktu Hari–Tahun/Kustom/Semua
+- [x] Search bisa disembunyikan + Filter Lanjutan

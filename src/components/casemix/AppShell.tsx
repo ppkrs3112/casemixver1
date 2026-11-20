@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   LayoutDashboard,
@@ -14,6 +14,8 @@ import {
   Menu,
   ChevronsLeft,
   ChevronsRight,
+  ChevronRight,
+  ChevronDown,
   Bell,
   Search,
   UserRound,
@@ -43,23 +45,13 @@ const nav = [
   },
   { to: "/pasien", label: "Daftar Pasien", title: "Daftar Pasien", icon: Users, admin: false },
   { to: "/laporan", label: "Laporan", title: "Laporan", icon: FileText, admin: false },
-  {
-    to: "/pengaturan",
-    label: "Kelola Penjamin COB",
-    title: "Kelola Penjamin COB",
-    icon: Building2,
-    admin: true,
-  },
-  { to: "/settings", label: "Pengaturan", title: "Pengaturan", icon: Settings, admin: true },
-  {
-    to: "/tampilan",
-    label: "Pengaturan Tampilan",
-    title: "Pengaturan Tampilan",
-    icon: Palette,
-    admin: true,
-  },
-  { to: "/akun", label: "Kelola Akun", title: "Kelola Akun", icon: UserRound, admin: true },
 ] as const;
+const settingsNav = [
+  { to: "/pengaturan", label: "Kelola Penjamin COB", title: "Kelola Penjamin COB", icon: Building2 },
+  { to: "/tampilan", label: "Pengaturan Tampilan", title: "Pengaturan Tampilan", icon: Palette },
+  { to: "/akun", label: "Kelola Akun", title: "Kelola Akun", icon: UserRound },
+] as const;
+const settingsPaths: string[] = ["/settings", ...settingsNav.map((n) => n.to)];
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: me } = useSuspenseQuery(meQuery);
   const { appearance: a } = useAppearance();
@@ -68,8 +60,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
+  const inSettings = settingsPaths.includes(pathname);
+  const [settingsOpen, setSettingsOpen] = useState(inSettings);
+  useEffect(() => {
+    if (inSettings) setSettingsOpen(true);
+  }, [inSettings]);
   if (!me) return null;
-  const current = nav.find((n) => n.to === pathname);
+  const current =
+    nav.find((n) => n.to === pathname) ??
+    settingsNav.find((n) => n.to === pathname) ??
+    (pathname === "/settings" ? { title: "Pengaturan" } : undefined);
   async function logout() {
     await supabase.auth.signOut();
     navigate({ to: "/" });
@@ -121,6 +121,48 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             </Button>
           ))}
+        {me.role === "Admin" && (
+          <div>
+            <Button
+              variant="ghost"
+              aria-expanded={settingsOpen}
+              onClick={() => (mini ? navigate({ to: "/settings" }) : setSettingsOpen(!settingsOpen))}
+              title={mini ? "Pengaturan" : undefined}
+              className={cn(
+                "h-auto min-h-11 w-full justify-start rounded-none border-l-[3px] border-transparent px-5 py-3 text-muted-foreground hover:bg-primary-soft hover:text-primary",
+                inSettings && "border-primary bg-primary-soft font-bold text-primary",
+                mini && "justify-center px-2",
+              )}
+            >
+              <Settings className="h-[18px] w-[18px] shrink-0" />
+              {!mini && (
+                <>
+                  <span className="flex-1 text-left text-sm">Pengaturan</span>
+                  {settingsOpen ? <ChevronDown /> : <ChevronRight />}
+                </>
+              )}
+            </Button>
+            {settingsOpen && !mini && (
+              <div className="ml-8 mt-1 space-y-1 border-l border-border-soft">
+                {settingsNav.map((n) => (
+                  <Link
+                    key={n.to}
+                    to={n.to}
+                    onClick={() => setMobile(false)}
+                    aria-current={pathname === n.to ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-10 items-center gap-2 rounded-r-md px-3 py-2 text-sm text-muted-foreground hover:bg-primary-soft hover:text-primary",
+                      pathname === n.to && "bg-primary-soft font-bold text-primary",
+                    )}
+                  >
+                    <n.icon className="h-4 w-4 shrink-0" />
+                    {n.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
       <div className="border-t border-border-soft p-3">
         <div

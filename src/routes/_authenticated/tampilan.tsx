@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Choice } from "@/components/casemix/Choice";
+import { AppearancePreview } from "@/components/casemix/AppearancePreview";
 import { useAppearance, DEFAULT_APPEARANCE, validateLogo, type Appearance } from "@/lib/appearance";
 import { meQuery } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,7 @@ function Editor() {
   const [form, setForm] = useState<Appearance>(appearance);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const upload = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!dirty) setForm(savedAppearance); }, [savedAppearance, dirty]);
   useEffect(() => () => preview(null), [preview]);
@@ -80,6 +82,7 @@ function Editor() {
     try {
       await save(form);
       setDirty(false);
+      setShowPreview(false);
       toast.success("Pengaturan Tampilan Berhasil Disimpan");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan");
@@ -136,7 +139,7 @@ function Editor() {
           <h1 className="text-2xl font-bold">Pengaturan Tampilan</h1>
           <p className="mt-1 text-sm text-muted-foreground">Identitas Rumah Sakit</p>
         </div>
-        <Button variant="outline" onClick={() => preview(form)}>
+        <Button variant="outline" onClick={() => setShowPreview(true)}>
           <Eye />
           Preview
         </Button>
@@ -261,6 +264,7 @@ function Editor() {
           Batal / Reset
         </Button>
       </div>
+      <AppearancePreview open={showPreview} onOpenChange={setShowPreview} form={form} busy={busy} onSave={submit} />
     </main>
   );
 }

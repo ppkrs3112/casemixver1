@@ -833,3 +833,83 @@ export function dateRangePreset(preset: string, today: string) {
   }
   return { from: "", to: "" };
 }
+
+// ---- Filter Rentang Waktu (Hari – Tahun) ----
+export type TimeKind = "hari" | "kemarin" | "minggu" | "bulan" | "tahun" | "kustom" | "semua";
+export const TIME_KINDS: { value: TimeKind; label: string }[] = [
+  { value: "hari", label: "Hari Ini" },
+  { value: "kemarin", label: "Kemarin" },
+  { value: "minggu", label: "Minggu Ini" },
+  { value: "bulan", label: "Bulan Ini" },
+  { value: "tahun", label: "Tahun Ini" },
+  { value: "kustom", label: "Rentang Kustom" },
+  { value: "semua", label: "Semua Waktu" },
+];
+export interface TimeRange {
+  from: string;
+  to: string;
+  label: string;
+  days: number | null;
+  error?: string;
+}
+const BULAN_PANJANG_TR = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const isoOf = (x: Date) => x.toISOString().slice(0, 10);
+const dOf = (s: string) => new Date(`${s}T00:00:00Z`);
+export function shortDate(s: string) {
+  const d = dOf(s);
+  return `${d.getUTCDate()} ${BULAN[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+function spanDays(from: string, to: string) {
+  return Math.round((dOf(to).getTime() - dOf(from).getTime()) / 86400000) + 1;
+}
+function rangeLabel(from: string, to: string) {
+  const a = dOf(from), b = dOf(to);
+  if (from === to) return `${HARI[a.getUTCDay()]}, ${shortDate(from)}`;
+  if (a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth())
+    return `${a.getUTCDate()} - ${shortDate(to)}`;
+  return `${shortDate(from)} - ${shortDate(to)}`;
+}
+/** offset menggeser bulan/tahun (tombol << >>). */
+export function timeRange(kind: TimeKind, today: string, offset = 0, custom = { from: "", to: "" }): TimeRange {
+  const t = dOf(today);
+  if (kind === "semua") return { from: "", to: "", label: "Semua Waktu", days: null };
+  if (kind === "hari" || kind === "kemarin") {
+    if (kind === "kemarin") t.setUTCDate(t.getUTCDate() - 1);
+    const s = isoOf(t);
+    return { from: s, to: s, label: rangeLabel(s, s), days: 1 };
+  }
+  if (kind === "minggu") {
+    const dow = (t.getUTCDay() + 6) % 7; // Senin = 0
+    t.setUTCDate(t.getUTCDate() - dow);
+    const from = isoOf(t);
+    t.setUTCDate(t.getUTCDate() + 6);
+    const to = isoOf(t);
+    return { from, to, label: rangeLabel(from, to), days: 7 };
+  }
+  if (kind === "bulan") {
+    const s = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + offset, 1));
+    const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 1, 0));
+    const from = isoOf(s), to = isoOf(e);
+    return { from, to, label: `${BULAN_PANJANG_TR[s.getUTCMonth()]} ${s.getUTCFullYear()}`, days: spanDays(from, to) };
+  }
+  if (kind === "tahun") {
+    const y = t.getUTCFullYear() + offset;
+    return { from: `${y}-01-01`, to: `${y}-12-31`, label: `Tahun ${y}`, days: spanDays(`${y}-01-01`, `${y}-12-31`) };
+  }
+  const { from, to } = custom;
+  if (!from || !to) return { from: "", to: "", label: "Pilih tanggal mulai & selesai", days: null, error: "Tanggal Mulai dan Selesai wajib diisi" };
+  if (to < from) return { from, to, label: "Rentang tidak valid", days: null, error: "Tanggal Selesai tidak boleh sebelum Tanggal Mulai" };
+  return { from, to, label: rangeLabel(from, to), days: spanDays(from, to) };
+}
+export function inRange(p: Patient, r: Pick<TimeRange, "from" | "to" | "error">) {
+  if (r.error) return false;
+  if (!r.from && !r.to) return true;
+  return p.tanggal >= r.from && p.tanggal <= r.to;
+}
+export type SearchField = "semua" | "noSep" | "nama" | "rm" | "icd10" | "dpjp";
+export function matchesSearchBy(p: Patient, q: string, field: SearchField) {
+  if (field === "semua") return matchesSearch(p, q);
+  const s = q.trim().toLowerCase();
+  return !s || String(p[field] ?? "").toLowerCase().includes(s);
+}

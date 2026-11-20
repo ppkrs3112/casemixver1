@@ -34,12 +34,13 @@ function Chart({
   );
 }
 const colors = ["var(--primary)", "var(--secondary)", "var(--chart-3)", "var(--chart-4)"];
-export function DashboardCharts({ rows }: { rows: Patient[] }) {
+export function DashboardCharts({ rows, monthly = false }: { rows: Patient[]; monthly?: boolean }) {
+  const key = (p: Patient) => (monthly ? p.tanggal.slice(0, 7) : p.tanggal);
   const t = totals(rows);
   const u = upgradeStats(rows);
-  const dates = [...new Set(rows.map((p) => p.tanggal))].sort();
+  const dates = [...new Set(rows.map(key))].sort();
   const line = dates.map((date) => {
-    const v = totals(rows.filter((p) => p.tanggal === date));
+    const v = totals(rows.filter((p) => key(p) === date));
     return { date, pendapatan: v.totalPendapatan, billing: v.billing };
   });
   const dpjp = [...new Set(rows.map((p) => p.dpjp || "Tanpa DPJP"))].map((name) => ({

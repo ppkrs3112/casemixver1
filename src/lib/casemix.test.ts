@@ -298,3 +298,36 @@ describe("Inpatient and upgrade rules", () => {
       to: "2025-12-31",
     }));
 });
+
+import { timeRange, inRange, matchesSearchBy, emptyPatient as ep2 } from "./casemix";
+describe("filter rentang waktu", () => {
+  const today = "2026-11-20"; // Jumat
+  it("Hari Ini dan Kemarin satu tanggal", () => {
+    expect(timeRange("hari", today)).toMatchObject({ from: today, to: today, label: "Jumat, 20 Nov 2026" });
+    expect(timeRange("kemarin", today)).toMatchObject({ from: "2026-11-19", to: "2026-11-19" });
+  });
+  it("Minggu Ini Senin - Minggu", () => {
+    expect(timeRange("minggu", today)).toMatchObject({ from: "2026-11-16", to: "2026-11-22", label: "16 - 22 Nov 2026" });
+  });
+  it("Bulan dan Tahun bisa digeser", () => {
+    expect(timeRange("bulan", today, -1)).toMatchObject({ from: "2026-10-01", to: "2026-10-31", label: "Oktober 2026" });
+    expect(timeRange("tahun", today, 1)).toMatchObject({ from: "2027-01-01", to: "2027-12-31" });
+  });
+  it("Rentang Kustom terbalik ditolak", () => {
+    expect(timeRange("kustom", today, 0, { from: "2026-11-20", to: "2026-11-01" }).error).toBe(
+      "Tanggal Selesai tidak boleh sebelum Tanggal Mulai",
+    );
+    expect(timeRange("kustom", today, 0, { from: "2026-11-01", to: "2026-11-20" }).days).toBe(20);
+  });
+  it("inRange dan Semua Waktu", () => {
+    const p = ep2("2026-11-05");
+    expect(inRange(p, timeRange("bulan", today))).toBe(true);
+    expect(inRange(p, timeRange("hari", today))).toBe(false);
+    expect(inRange(p, timeRange("semua", today))).toBe(true);
+  });
+  it("cari berdasarkan kolom", () => {
+    const p = { ...ep2("2026-11-05"), nama: "Budi", rm: "123" };
+    expect(matchesSearchBy(p, "budi", "nama")).toBe(true);
+    expect(matchesSearchBy(p, "budi", "rm")).toBe(false);
+  });
+});

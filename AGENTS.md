@@ -41,4 +41,5 @@ use the editor.
 - Upgrade statistics and date presets are pure functions in the casemix module; Excel loads its browser writer only on export. Why: share tested calculations and keep browser-only download code out of server execution.
 - Authenticated pages share AppShell for fixed/collapsed desktop navigation and an accessible mobile drawer; login stays outside this shell. Why: navigation is consistent without changing the existing login flow.
 - Appearance settings are public-read/admin-write in a singleton row; logo uploads use private storage and a validated image preview in settings, with shared theme tokens and polling. Why: branding works signed out and across devices without public storage buckets.
+- Dashboard and Daftar Pasien share `FilterBar` (time range via pure `timeRange` in casemix module; search panel hidden state remembered per device). Why: one tested date-range rule for cards, charts and tables.
 <!-- AGENT-MEMORY:END -->
