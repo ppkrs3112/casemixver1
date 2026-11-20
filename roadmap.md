@@ -35,3 +35,9 @@
 - [x] Sub-menu Pengaturan di sidebar
 - [x] Filter waktu Hari–Tahun/Kustom/Semua
 - [x] Search bisa disembunyikan + Filter Lanjutan
+
+## Upload & Sinkronisasi
+- [ ] Empat template Excel, validasi semua baris, preview sebelum simpan
+- [ ] Riwayat upload online, sinkronisasi No SEP dan pembatalan upload terakhir
+- [ ] Dashboard utama baru, filter, grafik, tabel selisih dan export
+- [ ] Tes aturan sinkronisasi dan alur upload desktop/HP

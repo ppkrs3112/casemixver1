@@ -32,6 +32,39 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_uploads: {
+        Row: {
+          created_at: string
+          created_by: string
+          filename: string
+          id: string
+          kind: number
+          revoked_at: string | null
+          revoked_by: string | null
+          rows: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          filename: string
+          id?: string
+          kind: number
+          revoked_at?: string | null
+          revoked_by?: string | null
+          rows: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          filename?: string
+          id?: string
+          kind?: number
+          revoked_at?: string | null
+          revoked_by?: string | null
+          rows?: Json
+        }
+        Relationships: []
+      }
       cob_payers: {
         Row: {
           aktif: boolean

@@ -1,0 +1,5 @@
+import { queryOptions } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { validateRows, type UploadBatch, type UploadKind } from './claim-sync';
+export const claimUploadsQuery=queryOptions({queryKey:['claim-uploads'],refetchInterval:15000,queryFn:async():Promise<UploadBatch[]>=>{const out:UploadBatch[]=[];for(let from=0;;from+=100){const {data,error}=await supabase.from('claim_uploads').select('*').order('created_at').order('id').range(from,from+99);if(error)throw new Error('Gagal memuat riwayat upload');out.push(...data.map(b=>({...b,kind:b.kind as UploadKind,rows:validateRows(b.kind as UploadKind,b.rows as unknown[])})));if(data.length<100)break;}return out;}});
+export async function revokeLastUpload(id:string,userId:string){const r=await supabase.from('claim_uploads').update({revoked_at:new Date().toISOString(),revoked_by:userId}).eq('id',id).is('revoked_at',null).select('id');if(r.error||!r.data?.length)throw new Error('Upload terakhir gagal dibatalkan. Muat ulang dan coba kembali.');}
